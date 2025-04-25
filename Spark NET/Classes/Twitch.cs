@@ -26,6 +26,8 @@ using System.Text.Json.Nodes;
 using TwitchLib.Api.ThirdParty.AuthorizationFlow;
 using TwitchLib.Client.Events;
 
+ // Fix Commands Not Working
+
 namespace WinFormsApp1.Classes
 {
     public class Twitch

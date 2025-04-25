@@ -10,6 +10,8 @@ using WinFormsApp1.Classes;
 using Vosk;
 using WinFormsApp1.Designs;
 
+ // Fix Responses Not Working
+
 namespace WinFormsApp1.Classes
 {
     public class Recognition

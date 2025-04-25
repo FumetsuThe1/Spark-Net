@@ -21,6 +21,8 @@ using static System.Net.Mime.MediaTypeNames;
 using System.Drawing;
 
 
+ // Add Global Keybind Support
+
 namespace WinFormsApp1.Classes
 {
     public class Spark
