@@ -17,7 +17,7 @@ namespace WinFormsApp1.Classes
     public class Recognition
     {
         public const string RecognitionModel = "Windows"; // Vosk, Windows, Vosk Backing
-        public const double Sensitivity = 40;
+        public const double Sensitivity = 60;
 
         const string SmallModel = @"E:\Files\AI Models\vosk-model-small-en-us-0.15\vosk-model-small-en-us-0.15";
         const string LargeModel = @"E:\Files\AI Models\vosk-model-en-us-0.22\vosk-model-en-us-0.22";

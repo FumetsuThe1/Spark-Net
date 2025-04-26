@@ -25,8 +25,12 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using TwitchLib.Api.ThirdParty.AuthorizationFlow;
 using TwitchLib.Client.Events;
+using TwitchLib.Api.Helix.Models.Moderation.BanUser;
+using TwitchLib.Api.Core.HttpCallHandlers;
 
- // Fix Commands Not Working
+// Fix Commands Not Working
+// Add support for connecting to non-broadcaster channels
+// Optimize everything, maybe implement threading
 
 namespace WinFormsApp1.Classes
 {
@@ -47,10 +51,10 @@ namespace WinFormsApp1.Classes
 
         string DirectURL = "http://localhost:3000";
 
-        string Scopes = "channel:moderate channel:bot chat:read chat:edit bits:read channel:read:redemptions channel:read:ads channel:read:editors";
+        string Scopes = "moderator:manage:banned_users moderator:read:banned_users user:bot moderator:read:chatters moderator:read:followers moderator:read:moderators moderation:read channel:moderate channel:bot chat:read chat:edit bits:read channel:read:redemptions channel:read:ads channel:read:editors user:write:chat";
 
         string ChannelID = "%null%";
-        string ChannelName = "%null%";
+        string ChannelName = "fumetsuthe1";
 
         const string Browser = @"C:\Program Files\Mozilla Firefox\firefox.exe";
 
@@ -72,10 +76,12 @@ namespace WinFormsApp1.Classes
             if (Channel == null)
             {
                 Channel = GetChannel();
+                ChannelName = Channel;
                 twitchClient.JoinChannel(Channel);
             }
             else
             {
+                ChannelName = Channel;
                 twitchClient.JoinChannel(Channel);
             }
         }
@@ -103,7 +109,7 @@ namespace WinFormsApp1.Classes
 
         private void MessageReceived(object? sender, TwitchLib.Client.Events.OnMessageReceivedArgs e)
         {
-            RecentUser = e.ChatMessage.Username;
+            RecentUser = e.ChatMessage.UserId;
             TwitchLib.Client.Models.ChatMessage Message = e.ChatMessage;
             Spark.DebugLog(Message.Message);
             if (LogMessages)
@@ -114,7 +120,17 @@ namespace WinFormsApp1.Classes
             StoreMessage(String);
         }
 
-
+        /// <summary>
+        /// Gets the display name of a user from their userID.
+        /// </summary>
+        /// <param name="userID"></param>
+        /// <returns></returns>
+        public string GetUserFromID(string userID)
+        {
+            var Users = API.Helix.Users.GetUsersAsync(new List<string> { userID });
+            string displayName = Users.Result.Users[0].DisplayName.ToString();
+            return displayName;
+        }
 
         private void ConnectClient()
         {
@@ -125,7 +141,7 @@ namespace WinFormsApp1.Classes
             twitchClient.OnLeftChannel += LeftChannel;
 
             twitchClient.OnMessageReceived += MessageReceived;
-            // // // //
+            // // // // // //
 
             twitchClient.Initialize(Credentials);
 
@@ -135,7 +151,10 @@ namespace WinFormsApp1.Classes
             JoinChannel();
         }
 
-
+        /// <summary>
+        /// Stores a message in the message log, ready for saving.
+        /// </summary>
+        /// <param name="Message"></param>
         private void StoreMessage(string Message)
         {
             int MessageLimit = 5000;
@@ -188,18 +207,63 @@ namespace WinFormsApp1.Classes
             }
         }
 
-
-        public void BanUser(string User)
+        public string GetBroadcasterID()
         {
-            twitchClient.BanUser(ChannelName, User);
-            Log("Banned Twitch User: " + User);
+            API.Settings.AccessToken = accessToken;
+            API.Settings.ClientId = clientID;
+            var User = API.Helix.Users.GetUsersAsync();
+            ChannelID = User.Result.Users[0].Id.ToString();
+            return ChannelID;
         }
 
-        private void SendMessage(string Message)
+        /// <summary>
+        /// Bans a user from the channel via UserID.
+        /// </summary>
+        /// <param name="userID"></param>
+        /// <returns></returns>
+        public async Task BanUser(string userID, int duration = -1)
         {
+            API.Settings.AccessToken = accessToken;
+            API.Settings.ClientId = clientID;
+            try
+            {
+                await API.Helix.Moderation.BanUserAsync(
+                GetBroadcasterID(),                 // broadcasterId: *which* channel to ban the user from; hope you're a mod there!
+                GetBroadcasterID(),                 // moderatorId: *who* is running the ban. This should be the same as the broadcasterId
+                new TwitchLib.Api.Helix.Models.Moderation.BanUser.BanUserRequest
+                {
+                      UserId = userID,    // *who* is getting banned
+                      Reason = "test",    // (optional) *why* are they getting banned
+                      Duration = null // (optional) how long to time them out for, or `null` a for perma-ban
+                },
+                      accessToken                  // accessToken: (optional) required to ban *as* someone else, or *if* skipped above
+                );
+                Log("Banned Twitch User: " + GetUserFromID(userID) + "for " + duration);
+            }
+            catch (Exception)
+            {
+                Log("Ban Failed! Invalid Ban Credentials!");
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Sends a message to the specific Twitch channel, otherwise uses the currently connected channel.
+        /// </summary>
+        /// <param name="Message"></param>
+        public void SendMessage(string Message, string? Channel = null)
+        {
+            if (Channel == null)
+            {
+                Channel = ChannelName;
+            }
+            Spark.DebugLog(ChannelName);
             twitchClient.SendMessage(ChannelName, Message);
         }
 
+        /// <summary>
+        /// Bans the most recent user that sent a message in the chat.
+        /// </summary>
         public void BanRecent()
         {
             BanUser(RecentUser);
@@ -213,6 +277,11 @@ namespace WinFormsApp1.Classes
             }
         }
 
+        /// <summary>
+        /// Logs a message to the console box.
+        /// </summary>
+        /// <param name="Text"></param>
+        /// <param name="Force"></param>
         public void Log(string Text, bool Force = false)
         {
             Spark.Log("Twitch: " + Text, Color.MediumPurple, Force);
@@ -239,6 +308,11 @@ namespace WinFormsApp1.Classes
             }
         }
 
+        /// <summary>
+        /// Runs a command with an optional parameter.
+        /// </summary>
+        /// <param name="Command"></param>
+        /// <param name="Parameter"></param>
         public void RunCommand(string Command, string Parameter = "%null%")
         {
             string CasedParameter = Parameter;
@@ -294,16 +368,6 @@ namespace WinFormsApp1.Classes
             }
         }
 
-        public async Task LoadConnection()
-        {
-            if (Spark.TwitchConnection)
-            {
-                await AuthApp();
-
-                API.Settings.Secret = clientSecret; API.Settings.AccessToken = accessToken; API.Settings.ClientId = clientID;
-            }
-        }
-
         async Task<Tuple<string, string>> GetTokens(string Code)
         {
             HttpClient client = new HttpClient();
@@ -329,38 +393,47 @@ namespace WinFormsApp1.Classes
             return new Tuple<string, string>(Json["access_token"].ToString(), Json["refresh_token"].ToString());
         }
 
-        public async Task AuthApp()
+        /// <summary>
+        /// Loads the connection to Twitch.
+        /// </summary>
+        /// <param name="forceLoad"></param>
+        /// <returns></returns>
+        public async Task LoadConnection(bool forceLoad = false)
         {
-            if (clientID == "%null%" || clientSecret == "%null%")
+            if (Spark.TwitchConnection || forceLoad == true)
             {
-                Spark.Warn("Twitch ClientID or ClientSecret Was Invalid!");
-            }
-            else
-            {
-                WebServer = new HttpServer();
-                WebServer.EndPoint = new IPEndPoint(IPAddress.Loopback, 3000);
+                API.Settings.Secret = clientSecret; API.Settings.AccessToken = accessToken; API.Settings.ClientId = clientID;
 
-                WebServer.RequestReceived += async (s, e) =>
+                if (clientID == "%null%" || clientID == null || clientSecret == "%null%" || clientSecret == null)
                 {
-                    using (var Writer = new StreamWriter(e.Response.OutputStream))
+                    Spark.Warn("Twitch ClientID or ClientSecret Is Missing!");
+                    Spark.TwitchConnection = false;
+                }
+                else
+                {
+                    WebServer = new HttpServer();
+                    WebServer.EndPoint = new IPEndPoint(IPAddress.Loopback, 3000);
+
+                    WebServer.RequestReceived += async (s, e) =>
                     {
-                        if (e.Request.QueryString.AllKeys.Any("code".Contains))
+                        using (var Writer = new StreamWriter(e.Response.OutputStream))
                         {
-                            var Code = e.Request.QueryString["code"];
-                            var Tokens = await GetTokens(Code);
-                            ConnectClient();
-                            WebServer.Stop();
-                            WebServer.Dispose();
+                            if (e.Request.QueryString.AllKeys.Any("code".Contains))
+                            {
+                                var Code = e.Request.QueryString["code"];
+                                var Tokens = await GetTokens(Code);
+                                ConnectClient();
+                                WebServer.Stop();
+                                WebServer.Dispose();
+                            }
                         }
-                    }
-                };
+                    };
+                    API.Settings.AccessToken = accessToken;
+                    ValidateAccessTokenResponse TokenResponse = await API.Auth.ValidateAccessTokenAsync(accessToken);
 
-                API.Settings.AccessToken = accessToken;
-                ValidateAccessTokenResponse TokenResponse = await API.Auth.ValidateAccessTokenAsync(accessToken);
-
-                if (TokenResponse == null || OldScopes != Scopes)
-                {
-                    var Values = new Dictionary<string, string>
+                    if (TokenResponse == null || OldScopes != Scopes)
+                    {
+                        var Values = new Dictionary<string, string>
                 {
                 { "client_id", clientID },
                 { "force_verify", "false" },
@@ -368,24 +441,25 @@ namespace WinFormsApp1.Classes
                 { "response_type", "code" },
                 { "scope", Scopes},
             };
-                    var Content = new FormUrlEncodedContent(Values);
+                        var Content = new FormUrlEncodedContent(Values);
 
 
 
-                    WebServer.Start();
+                        WebServer.Start();
 
-                    HttpClient client = new HttpClient();
-                    Uri URL = new Uri(DirectURL);
-                    client.BaseAddress = URL;
-                    client.Timeout = System.TimeSpan.FromSeconds(24);
+                        HttpClient client = new HttpClient();
+                        Uri URL = new Uri(DirectURL);
+                        client.BaseAddress = URL;
+                        client.Timeout = System.TimeSpan.FromSeconds(24);
 
-                    string FullURL = "https://id.twitch.tv/oauth2/authorize?" + Content.ReadAsStringAsync().Result;
+                        string FullURL = "https://id.twitch.tv/oauth2/authorize?" + Content.ReadAsStringAsync().Result;
 
-                    Process.Start(new ProcessStartInfo(FullURL) { UseShellExecute = true });
-                }
-                else
-                {
-                    ConnectClient();
+                        Process.Start(new ProcessStartInfo(FullURL) { UseShellExecute = true });
+                    }
+                    else
+                    {
+                        ConnectClient();
+                    }
                 }
             }
         }

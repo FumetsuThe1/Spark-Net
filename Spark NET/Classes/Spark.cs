@@ -19,9 +19,12 @@ using System.Threading;
 using System.Security.Policy;
 using static System.Net.Mime.MediaTypeNames;
 using System.Drawing;
+using System.Text.Json;
+using static WinFormsApp1.Classes.Twitch;
+using static System.Formats.Asn1.AsnWriter;
 
 
- // Add Global Keybind Support
+// Add Global Keybind Support
 
 namespace WinFormsApp1.Classes
 {
@@ -39,8 +42,8 @@ namespace WinFormsApp1.Classes
         bool NoActions = true;
         public bool SparkPowered = false;
 
-        const bool EnableLogging = true;
-        const bool ResetLogs = false;
+        public bool EnableLogging = true;
+        public bool ResetLogs = false;
 
         public const string osName = "Spark ";
         public const string osOpen = osName + "open ";
@@ -64,6 +67,7 @@ namespace WinFormsApp1.Classes
         public string DataPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Spark NET");
         public string binData = Path.Combine(Environment.CurrentDirectory, "Data");
         public string TwitchPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Spark NET", "Twitch");
+        public string optionsPath = Path.Combine(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Spark NET"), "Settings.json");
 
         public Dictionary<string, string> Responses = new Dictionary<string, string>();
 
@@ -77,6 +81,46 @@ namespace WinFormsApp1.Classes
 
             MainForm.ExitComplete = true;
             System.Windows.Forms.Application.Exit();
+        }
+
+        private async Task SaveData()
+        {
+            await CreateFile(optionsPath);
+            var data = new List<Options>
+            {
+                new Options
+                {
+                    enableLogging = EnableLogging,
+                    resetLogs = ResetLogs,
+                    twitchConnection = TwitchConnection
+                }
+            };
+
+            var options = new JsonSerializerOptions
+            {
+                WriteIndented = true,
+            };
+
+            string jsonString = JsonSerializer.Serialize(data, options);
+
+            await using (StreamWriter swc = new StreamWriter(optionsPath))
+            {
+                await swc.WriteLineAsync(jsonString);
+            }
+        }
+
+        private async Task LoadData()
+        {
+            Options options = new Options();
+            if (System.IO.File.Exists(optionsPath))
+            {
+                var clientJson = await System.IO.File.ReadAllTextAsync(optionsPath);
+                var Json = JsonSerializer.Deserialize<Options[]>(clientJson);
+
+                TwitchConnection = Json[0].twitchConnection;
+                EnableLogging = Json[0].enableLogging;
+                ResetLogs = Json[0].resetLogs;
+            }
         }
 
         public async Task CreatePath(string Path)
@@ -307,6 +351,7 @@ namespace WinFormsApp1.Classes
                     ClearLog();
                 }
                 Classes.Recognition.Load();
+                Respond("bank");
             }
         }
 
@@ -360,5 +405,12 @@ namespace WinFormsApp1.Classes
                 Append(box, text, color);
             }
         }
+    }
+
+    public class Options
+    {
+        public bool enableLogging { get; set; }
+        public bool resetLogs { get; set; }
+        public bool twitchConnection { get; set; }
     }
 }
