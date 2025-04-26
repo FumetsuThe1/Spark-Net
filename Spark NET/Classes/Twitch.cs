@@ -43,7 +43,7 @@ namespace WinFormsApp1.Classes
 
         string DirectURL = "http://localhost:3000";
 
-        string scopes = "moderator:manage:banned_users moderator:read:banned_users user:bot moderator:read:chatters moderator:read:followers moderator:read:moderators moderation:read channel:moderate channel:bot chat:read chat:edit bits:read channel:read:redemptions channel:read:ads channel:read:editors user:write:chat";
+        string scopes = "clips:edit moderator:manage:banned_users moderator:read:banned_users user:bot moderator:read:chatters moderator:read:followers moderator:read:moderators moderation:read channel:moderate channel:bot chat:read chat:edit bits:read channel:read:redemptions channel:read:ads channel:read:editors user:write:chat";
 
 
         string channelName = "%null%";
@@ -65,10 +65,16 @@ namespace WinFormsApp1.Classes
         public string clientDataPath = Path.Combine(twitchPath, "Client.json");
         public string twitchLogsPath = Path.Combine(twitchPath, "Twitch Logs");
 
+        List<string> streamLogs = new List<string>();
+        List<string> twitchLogs = new List<string>();
+        List<string> messageLogs = new List<string>();
+        List<string> moderationLogs = new List<string>();
+        List<string> channelPointLogs = new List<string>();
+        List<string> viewerLogs = new List<string>();
+
+        List<Tuple<string, List<string>>> logList = new List<Tuple<string, List<string>>>();
 
         Dictionary<string, string> chatCommands = new Dictionary<string, string>();
-        List<string> chatMessages = new List<string>();
-        List<string> visitedViewers = new List<string>();
         string oldScopes = "%null%";
         string RecentUser = "%null%";
 
@@ -77,6 +83,14 @@ namespace WinFormsApp1.Classes
 
 
         #region Methods
+
+        public void CreateClip()
+        {
+            API.Settings.ClientId = clientID;
+            API.Settings.AccessToken = accessToken;
+            var Clip = API.Helix.Clips.CreateClipAsync(GetBroadcasterID(), accessToken);
+            Log("Clip Created!");
+        }
 
         public void JoinChannel(string? Channel = null)
         {
@@ -179,6 +193,7 @@ namespace WinFormsApp1.Classes
                       accessToken                  // accessToken: (optional) required to ban *as* someone else, or *if* skipped above
                 );
                 Log("Banned Twitch User: " + GetUserFromID(userID) + "for " + duration);
+                StoreLog(moderationLogs, GetUserFromID(userID) + " has been banned for " + duration + " seconds!");
             }
             catch (Exception)
             {
@@ -339,6 +354,8 @@ namespace WinFormsApp1.Classes
             }
         }
 
+
+
         #endregion
 
 
@@ -397,9 +414,18 @@ namespace WinFormsApp1.Classes
 
         #region Events
 
+        private void RaidDetected(object? sender, TwitchLib.Client.Events.OnRaidNotificationArgs e)
+        {
+            string raider = e.RaidNotification.DisplayName;
+            string viewerCount = e.RaidNotification.MsgParamViewerCount;
+            Log(raider + " is raiding with " + viewerCount + " viewers!");
+            StoreLog(streamLogs, " " + Spark.GetCurrentTime() + "  -  " + raider + " is raiding with " + viewerCount + " viewers!");
+        }
+
         private void ViewerLeft(object? sender, TwitchLib.Client.Events.OnUserLeftArgs e)
         {
             string Viewer = e.Username;
+            StoreLog(viewerLogs, " " + Spark.GetCurrentTime() + "  -  " + Viewer + " has left the stream!");
             Log("Viewer Left: " + Viewer);
         }
 
@@ -407,6 +433,7 @@ namespace WinFormsApp1.Classes
         {
             string Viewer = e.Username;
             StoreViewer(Viewer);
+            StoreLog(streamLogs, " " + Spark.GetCurrentTime() + "  -  " + Viewer + " joined the stream!");
             Log("Viewer Joined: " + Viewer);
         }
 
@@ -429,8 +456,25 @@ namespace WinFormsApp1.Classes
             {
                 Spark.Log(Message.DisplayName + ": " + Message.Message, Color.MediumPurple);
             }
-            string String = " " + DateTime.Now.Hour + ":" + DateTime.Now.Minute + ":" + DateTime.Now.Second + " - " + Message.DisplayName + ": " + Message.Message;
-            StoreMessage(String);
+            string String = " " + Spark.GetCurrentTime() + "  -  " + Message.DisplayName + ": " + Message.Message;
+            StoreLog(messageLogs, String);
+        }
+
+        private void UserBanned(object? sender, TwitchLib.Client.Events.OnUserBannedArgs e)
+        {
+            string viewer = e.UserBan.Username;
+            string banReason = e.UserBan.BanReason;
+            StoreLog(moderationLogs, " " + Spark.GetCurrentTime() + "  -  " + viewer + " has been banned for " + banReason);
+            Log("User Banned: " + viewer);
+        }
+
+        private void UserTimedOut(object? sender, TwitchLib.Client.Events.OnUserTimedoutArgs e)
+        {
+            string viewer = e.UserTimeout.Username;
+            int timeoutDuration = e.UserTimeout.TimeoutDuration;
+            string timeoutReason = e.UserTimeout.TimeoutReason;
+            StoreLog(moderationLogs, viewer + " has been timed out for " + timeoutDuration + " seconds for " + timeoutReason);
+            Log("User Timed Out: " + viewer);
         }
 
         #endregion
@@ -440,10 +484,13 @@ namespace WinFormsApp1.Classes
 
         private void ConnectEvents()
         {
+            twitchClient.OnUserBanned += UserBanned;
+            twitchClient.OnRaidNotification += RaidDetected;
             twitchClient.OnJoinedChannel += JoinedChannel;
             twitchClient.OnUserJoined += ViewerJoined;
             twitchClient.OnUserLeft += ViewerLeft;
             twitchClient.OnMessageReceived += MessageReceived;
+            twitchClient.OnUserTimedout += UserTimedOut;
         }
 
         /// <summary>
@@ -452,34 +499,16 @@ namespace WinFormsApp1.Classes
         /// <param name="Viewer"></param>
         private void StoreViewer(string Viewer)
         {
-            if (!visitedViewers.Contains(Viewer))
+            if (!viewerLogs.Contains(Viewer))
             {
-                int logLimit = 5000;
-                if (visitedViewers.Count >= logLimit)
-                {
-                    visitedViewers.RemoveRange(0, logLimit - 1);
-                }
-                visitedViewers.Add(Viewer);
+                EnsureLimit(viewerLogs, 5000, true);
+                viewerLogs.Add(Viewer);
             }
-        }
-
-        /// <summary>
-        /// Stores a message in the message log, ready for saving.
-        /// </summary>
-        /// <param name="Message"></param>
-        private void StoreMessage(string Message)
-        {
-            int logLimit = 5000;
-            if (chatMessages.Count >= logLimit)
-            {
-                chatMessages.RemoveRange(0, logLimit - 1);
-            }
-            chatMessages.Add(Message);
         }
 
 
         // Add Support for Same-Date Message Logs
-        private async Task SaveData(bool ForceSave = false)
+        private async Task OldSaveData(bool ForceSave = false)
         {
             var data = new List<ClientData>
             {
@@ -506,31 +535,45 @@ namespace WinFormsApp1.Classes
                 await swc.WriteLineAsync(jsonString);
             }
 
-            if (ForceSave || chatMessages.Count >= 1 || visitedViewers.Count >= 1)
+            int dataCount = messageLogs.Count + viewerLogs.Count + twitchLogs.Count + moderationLogs.Count + channelPointLogs.Count + streamLogs.Count;
+            if (ForceSave || dataCount > 0)
             {
                 string logPath = twitchLogsPath + @"\" + DateTime.Now.Day + ";" + DateTime.Now.Month + ";" + DateTime.Now.Year;
                 await Spark.CreatePath(logPath);
 
-                if (visitedViewers.Count >= 1 || ForceSave && visitedViewers.Count >= 1)
+                if (!IsEmpty(twitchLogs) || ForceSave && twitchLogs.Count >= 1)
                 {
-                    visitedViewers.Sort();
+                    viewerLogs.Sort();
                     using var viewerfile = System.IO.File.OpenWrite(logPath + @"\Viewers.txt");
                     await using (StreamWriter swv = new StreamWriter(viewerfile))
                     {
-                        foreach (string Viewer in visitedViewers)
+                        foreach (string Viewer in viewerLogs)
                         {
                             await swv.WriteLineAsync(Viewer);
                         }
                     }
                 }
 
-                if (logMessages && chatMessages.Count >= 1 || ForceSave && chatMessages.Count >= 1)
+                if (viewerLogs.Count >= 1 || ForceSave && viewerLogs.Count >= 1)
+                {
+                    viewerLogs.Sort();
+                    using var viewerfile = System.IO.File.OpenWrite(logPath + @"\Viewers.txt");
+                    await using (StreamWriter swv = new StreamWriter(viewerfile))
+                    {
+                        foreach (string Viewer in viewerLogs)
+                        {
+                            await swv.WriteLineAsync(Viewer);
+                        }
+                    }
+                }
+
+                if (logMessages && messageLogs.Count >= 1 || ForceSave && messageLogs.Count >= 1)
                 {
                     string FilePath = twitchLogsPath + @"\ChatLog   " + DateTime.Now.Day + ";" + DateTime.Now.Month + ";" + DateTime.Now.Year + ".txt";
                     using var messagefile = System.IO.File.OpenWrite(logPath + @"\Messages.txt");
                     await using (StreamWriter swm = new StreamWriter(messagefile))
                     {
-                        foreach (string Message in chatMessages)
+                        foreach (string Message in messageLogs)
                         {
                             await swm.WriteLineAsync(Message);
                         }
@@ -538,6 +581,93 @@ namespace WinFormsApp1.Classes
                 }
             }
         }
+
+        private async Task SaveData(bool ForceSave = false)
+        {
+            LoadLogList();
+
+            foreach (Tuple<string, List<string>> list in logList)
+            {
+                if (!IsEmpty(list.Item2) || ForceSave)
+                {
+                    string logPath = twitchLogsPath + @"\" + DateTime.Now.Day + ";" + DateTime.Now.Month + ";" + DateTime.Now.Year;
+                    await Spark.CreatePath(logPath);
+                    string FilePath = logPath + @"\" + list.Item1 + ".txt";
+                    using var file = System.IO.File.OpenWrite(FilePath);
+                    await using (StreamWriter sw = new StreamWriter(file))
+                    {
+                        foreach (string log in list.Item2)
+                        {
+                            await sw.WriteLineAsync(log);
+                        }
+                    }
+                }
+            }
+        }
+
+        public void LoadLogList()
+        {
+            viewerLogs.Sort();
+            logList.Add(new Tuple<string, List<string>>("Stream", streamLogs));
+            logList.Add(new Tuple<string, List<string>>("Twitch Log", twitchLogs));
+            logList.Add(new Tuple<string, List<string>>("Messages", messageLogs));
+            logList.Add(new Tuple<string, List<string>>("Moderation", moderationLogs));
+            logList.Add(new Tuple<string, List<string>>("Channel Points", channelPointLogs));
+            logList.Add(new Tuple<string, List<string>>("Viewers", viewerLogs));
+        }
+
+        /// <summary>
+        /// Checks if the provided list is empty.
+        /// </summary>
+        /// <param name="list"></param>
+        /// <returns></returns>
+        public bool IsEmpty(List<string> list)
+        {
+            if (list.Count <= 0)
+            {
+                return true;
+
+            }
+            else
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Stores the provided data into the provided list, to be ready for saving.
+        /// </summary>
+        /// <param name="list"></param>
+        /// <param name="data"></param>
+        /// <param name="dataLimit"></param>
+        public void StoreLog(List<string> list, string data, int dataLimit = 5000)
+        {
+            EnsureLimit(list, dataLimit, true);
+            list.Add(data);
+            twitchLogs.Add(data);
+        }
+
+        /// <summary>
+        /// Ensures that the provided list does not exceed the provided limit.
+        /// </summary>
+        /// <param name="list"></param>
+        /// <param name="limit"></param>
+        /// <param name="addingValue"></param>
+        public static void EnsureLimit(List<string> list, int limit = 5000, bool addingValue = false)
+        {
+            if (list.Count >= limit)
+            {
+                if (addingValue)
+                {
+                    list.RemoveRange(0, limit - 1);
+                }
+                else
+                {
+                    list.RemoveRange(0, limit);
+                }
+            }
+        }
+
 
 
         public async Task AppClosing()

@@ -91,7 +91,9 @@ namespace WinFormsApp1.Classes
                 case "twitch_ban_recent":
                     Classes.Twitch.BanRecentUser();
                     return;
-
+                case "clip_that":
+                    Classes.Twitch.CreateClip();
+                    return;
             }
         }
 

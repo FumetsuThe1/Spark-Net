@@ -72,6 +72,13 @@ namespace WinFormsApp1.Classes
 
         public Dictionary<string, string> responses = new Dictionary<string, string>();
 
+        public string GetCurrentTime()
+        {
+            DateTime now = DateTime.Now;
+            string time = now.ToString("HH:mm:ss");
+            return time;
+        }
+
         public async Task HandleExit()
         {
             Shutdown();
@@ -166,6 +173,7 @@ namespace WinFormsApp1.Classes
             #region Choices
 
             AddChoice(osName + "ban that guy", "twitch_ban_recent");
+            AddChoice(osName + "clip that", "clip_that");
 
             #endregion
 
