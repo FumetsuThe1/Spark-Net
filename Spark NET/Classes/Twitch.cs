@@ -32,7 +32,7 @@ using TwitchLib.Api.Core.HttpCallHandlers;
 // Add support for Connecting to Non-Broadcaster Channels
 // Optimize and Refine everything, maybe implement Threading
 // Add support for Same-Date Twitch Logs
-// Add more Twitch Logging (Subs, Clips, Followers, Raids, Channel Point Redemptions)
+// Add more Twitch Logging (Chat Commands, Unbans, Channel Points, Followers, Subs, Title Changes, Category Changes)
 // Add Channel Bot Support?
 
 namespace WinFormsApp1.Classes
