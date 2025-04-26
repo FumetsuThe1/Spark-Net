@@ -18,6 +18,7 @@
     <PackageReference Include="InputSimulator" Version="1.0.4" />
     <PackageReference Include="NAudio" Version="2.2.1" />
     <PackageReference Include="NHttp" Version="0.1.9" />
+    <PackageReference Include="obs-websocket-dotnet" Version="5.0.1" />
     <PackageReference Include="System.Net.WebSockets" Version="4.3.0" />
     <PackageReference Include="System.Speech" Version="9.0.4" />
     <PackageReference Include="TwitchLib" Version="3.5.3" />

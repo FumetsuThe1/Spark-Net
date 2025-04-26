@@ -30,46 +30,47 @@ namespace WinFormsApp1.Classes
 {
     public class Spark
     {
-        public bool TwitchConnection = true;
-        public bool EnableRecognition = true;
+        public bool twitchConnection = true;
+        public bool enableRecognition = true;
 
         readonly MainForm MainForm = (MainForm)System.Windows.Forms.Application.OpenForms["MainForm"];
         Twitch Twitch = Classes.Twitch;
         Recognition Recognition = Classes.Recognition;
         Command Command = Classes.Command;
 
-        public bool Powered = false;
-        bool NoActions = true;
-        public bool SparkPowered = false;
+        public bool powered = false;
+        bool noActions = true;
+        public bool sparkPowered = false;
 
-        public bool EnableLogging = true;
-        public bool ResetLogs = false;
+        public bool enableLogging = true;
+        public bool resetLogs = false;
 
         public const string osName = "Spark ";
         public const string osOpen = osName + "open ";
         public const string osStart = osName + "start ";
 
-        public readonly Color DefaultColor = Color.White;
-        public readonly Color ResponseColor = Color.Aqua;
+        const string steamPath = @"E:\Tools\Windows\Steam\steam.exe";
+        const string epicGames = @"C:\Program Files (x86)\Epic Games\Launcher\Portal\Binaries\Win64\EpicGamesLauncher.exe";
 
-        public readonly Color SpeechColor = Color.FromArgb(103, 36, 237);
-        readonly Color WarningColor = Color.Red;
-        readonly Color UtilColor = Color.FromArgb(237, 183, 36);
+        public readonly Color defaultColor = Color.White;
+        public readonly Color responseColor = Color.Aqua;
 
-        public readonly Color ParamColor = Color.Pink;
-        readonly Color ProcessColor = Color.Green;
+        public readonly Color speechColor = Color.FromArgb(103, 36, 237);
+        readonly Color warningColor = Color.Red;
+        readonly Color utilColor = Color.FromArgb(237, 183, 36);
+
+        public readonly Color paramColor = Color.Pink;
+        readonly Color processColor = Color.Green;
 
         const string NoActionString = " No actions have been logged..";
 
-        const string SteamPath = @"E:\Tools\Windows\Steam\steam.exe";
-        const string EpicGames = @"C:\Program Files (x86)\Epic Games\Launcher\Portal\Binaries\Win64\EpicGamesLauncher.exe";
 
-        public string DataPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Spark NET");
+        public string dataPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Spark NET");
         public string binData = Path.Combine(Environment.CurrentDirectory, "Data");
-        public string TwitchPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Spark NET", "Twitch");
+        public string twitchPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Spark NET", "Twitch");
         public string optionsPath = Path.Combine(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Spark NET"), "Settings.json");
 
-        public Dictionary<string, string> Responses = new Dictionary<string, string>();
+        public Dictionary<string, string> responses = new Dictionary<string, string>();
 
         public async Task HandleExit()
         {
@@ -90,9 +91,9 @@ namespace WinFormsApp1.Classes
             {
                 new Options
                 {
-                    enableLogging = EnableLogging,
-                    resetLogs = ResetLogs,
-                    twitchConnection = TwitchConnection
+                    enableLogging = enableLogging,
+                    resetLogs = resetLogs,
+                    twitchConnection = twitchConnection
                 }
             };
 
@@ -117,9 +118,9 @@ namespace WinFormsApp1.Classes
                 var clientJson = await System.IO.File.ReadAllTextAsync(optionsPath);
                 var Json = JsonSerializer.Deserialize<Options[]>(clientJson);
 
-                TwitchConnection = Json[0].twitchConnection;
-                EnableLogging = Json[0].enableLogging;
-                ResetLogs = Json[0].resetLogs;
+                twitchConnection = Json[0].twitchConnection;
+                enableLogging = Json[0].enableLogging;
+                resetLogs = Json[0].resetLogs;
             }
         }
 
@@ -144,10 +145,10 @@ namespace WinFormsApp1.Classes
 
         public async Task AppLoad()
         {
-            await CreatePath(DataPath);
-            await CreatePath(Path.Combine(DataPath, "Logs"));
-            await CreatePath(TwitchPath);
-            await CreatePath(Path.Combine(TwitchPath, "MessageLogs"));
+            await CreatePath(dataPath);
+            await CreatePath(Path.Combine(dataPath, "Logs"));
+            await CreatePath(twitchPath);
+            await CreatePath(Path.Combine(twitchPath, "Twitch Logs"));
             await CreatePath(binData);
             await CreateFile(Path.Combine(binData, "Client.json"));
 
@@ -155,23 +156,37 @@ namespace WinFormsApp1.Classes
 
             DebugLog("Spark Loaded!");
             BuildLibrary();
-            CodeLibrary();
             await Twitch.AppLoad();
         }
 
         private void BuildLibrary()
         {
+            #region VoiceRecognition
+
+            #region Choices
+
             AddChoice(osName + "ban that guy", "twitch_ban_recent");
+
+            #endregion
+
+            #region Responses
 
             AddResponse("burger", "[E:\\Testo.txt]");
             AddResponse("fence", "This isn't a fence..");
             AddResponse("bank", "Timble Bonk");
 
-            AddProcess("Test Process", "Big Path?");
-        }
+            #endregion
 
-        private void CodeLibrary()
-        {
+            #region Processes
+
+            AddProcess("Test Process", "Big Path?");
+
+            #endregion
+
+            #endregion
+
+
+            #region Commands
             AddCommand("Exit");
             AddCommand("Crash");
 
@@ -185,15 +200,17 @@ namespace WinFormsApp1.Classes
             AddCommand("Parameter");
 
             AddCommand("Command");
+            #endregion
         }
+
 
         public void Shutdown()
         {
             MainForm.PowerButton.Text = "Stopping";
             MainForm.PowerButton.Enabled = false;
 
-            string api = Recognition.RecognitionModel.ToLower();
-            if (Powered)
+            string api = Recognition.recognitionModel.ToLower();
+            if (powered)
             {
                 Classes.Recognition.waveIn.StopRecording();
                 Classes.Recognition.waveIn.Dispose();
@@ -202,13 +219,13 @@ namespace WinFormsApp1.Classes
                     Classes.Recognition.winRec.RecognizeAsyncStop();
                     Classes.Recognition.winRec.Dispose();
                 }
-                Powered = false;
+                powered = false;
                 MainForm.PowerButton.Text = "Start";
                 MainForm.PowerButton.Enabled = true;
-                if (SparkPowered)
+                if (sparkPowered)
                 {
-                    SparkPowered = false;
-                    Log("Spark has been shutdown.", UtilColor);
+                    sparkPowered = false;
+                    Log("Spark has been shutdown.", utilColor);
                 }
             }
             Command.RunCommand("say big testo biggo!");
@@ -217,22 +234,22 @@ namespace WinFormsApp1.Classes
         private void AddCommand(string String, bool VA = false)
         {
             String = String.ToLower();
-            if (!Classes.Command.CommandList.ContainsKey(String))
+            if (!Classes.Command.commandList.ContainsKey(String))
             {
-                Classes.Command.CommandList.Add(String, String);
+                Classes.Command.commandList.Add(String, String);
             }
             if (VA)
             {
-                Classes.Recognition.Choices.Add(osName + String);
+                Classes.Recognition.choices.Add(osName + String);
             }
         }
 
         public void Respond(string Phrase)
         {
             string Response;
-            if (Responses.TryGetValue(Phrase, out var Line))
+            if (responses.TryGetValue(Phrase, out var Line))
             {
-                Response = Responses[Phrase].ToString();
+                Response = responses[Phrase].ToString();
                 var isCommandArray = Regex.IsMatch(Response, @"^\[.*?\]$");
                 if (isCommandArray)
                 {
@@ -257,21 +274,21 @@ namespace WinFormsApp1.Classes
         private void AddResponse(string Phrase, string Response)
         {
             Phrase = Phrase.ToLower();
-            Responses.TryAdd(Phrase, Response);
+            responses.TryAdd(Phrase, Response);
             AddChoice(Phrase, "respond");
         }
 
         private void AddChoice(string Phrase, string ActionID = "%null%")
         {
             Phrase = Phrase.ToLower();
-            Classes.Recognition.Choices.Add(Phrase);
-            Classes.Recognition.Phrases.TryAdd(Phrase, ActionID);
+            Classes.Recognition.choices.Add(Phrase);
+            Classes.Recognition.phrases.TryAdd(Phrase, ActionID);
         }
 
         private void AddProcess(string Phrase, string FilePath, string Params = "")
         {
             Phrase = Phrase.ToLower();
-            Classes.Recognition.Processes.TryAdd(Phrase, new Tuple<string, string>(FilePath, Params));
+            Classes.Recognition.processes.TryAdd(Phrase, new Tuple<string, string>(FilePath, Params));
             AddChoice(Phrase, "run");
         }
 
@@ -282,25 +299,25 @@ namespace WinFormsApp1.Classes
 
         public void Log(string Text, Color color, bool Force = false)
         {
-            if (EnableLogging || Force)
+            if (enableLogging || Force)
             {
-                if (NoActions)
+                if (noActions)
                 {
                     ClearLog();
                 }
                 DebugLog(Text);
                 MainForm.ConsoleBox.AppendText(" - " + Text, color);
                 MainForm.ConsoleBox.AppendText(Environment.NewLine, Color.White);
-                NoActions = false;
+                noActions = false;
             }
         }
 
         public void ResetLog()
         {
             ClearLog();
-            MainForm.ConsoleBox.AppendText(NoActionString, DefaultColor);
+            MainForm.ConsoleBox.AppendText(NoActionString, defaultColor);
             MainForm.ConsoleBox.AppendText(Environment.NewLine, Color.White);
-            NoActions = true;
+            noActions = true;
         }
 
         public void ClearLog()
@@ -311,42 +328,42 @@ namespace WinFormsApp1.Classes
 
         public void Say(string Response)
         {
-            if (NoActions)
+            if (noActions)
             {
                 ClearLog();
             }
-            NoActions = false;
+            noActions = false;
             DebugLog(Response);
-            MainForm.ConsoleBox.AppendText(" - SPARK: " + Response, ResponseColor);
+            MainForm.ConsoleBox.AppendText(" - SPARK: " + Response, responseColor);
             MainForm.ConsoleBox.AppendText(Environment.NewLine, Color.White);
         }
         public void Warn(string Text)
         {
-            if (NoActions)
+            if (noActions)
             {
                 ClearLog();
             }
-            Log("Warning! " + Text, WarningColor);
-            NoActions = false;
+            Log("Warning! " + Text, warningColor);
+            noActions = false;
         }
 
         public void SparkStarted()
         {
-            Log("Spark has been started!", UtilColor);
+            Log("Spark has been started!", utilColor);
 
-            SparkPowered = true;
+            sparkPowered = true;
             MainForm.PowerButton.Text = "Stop";
             MainForm.PowerButton.Enabled = true;
         }
 
         public void Startup()
         {
-            if (!Powered)
+            if (!powered)
             {
                 MainForm.PowerButton.Text = "Starting";
                 MainForm.PowerButton.Enabled = false;
-                Powered = true;
-                if (ResetLogs || NoActions)
+                powered = true;
+                if (resetLogs || noActions)
                 {
                     ClearLog();
                 }
@@ -357,7 +374,7 @@ namespace WinFormsApp1.Classes
 
         public void TogglePower()
         {
-            if (Powered)
+            if (powered)
             {
                 Shutdown();
             }
@@ -369,7 +386,7 @@ namespace WinFormsApp1.Classes
 
         public void Restart()
         {
-            if (Powered)
+            if (powered)
             {
                 Shutdown();
                 Startup();

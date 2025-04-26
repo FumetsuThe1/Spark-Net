@@ -16,38 +16,37 @@ namespace WinFormsApp1.Classes
 {
     public class Recognition
     {
-        public const string RecognitionModel = "Windows"; // Vosk, Windows, Vosk Backing
-        public const double Sensitivity = 60;
+        public const string recognitionModel = "Windows"; // Vosk, Windows, Vosk Backing
+        public const double sensitivity = 60;
 
-        const string SmallModel = @"E:\Files\AI Models\vosk-model-small-en-us-0.15\vosk-model-small-en-us-0.15";
-        const string LargeModel = @"E:\Files\AI Models\vosk-model-en-us-0.22\vosk-model-en-us-0.22";
+        const string smallModel = @"E:\Files\AI Models\vosk-model-small-en-us-0.15\vosk-model-small-en-us-0.15";
+        const string largeModel = @"E:\Files\AI Models\vosk-model-en-us-0.22\vosk-model-en-us-0.22";
 
-        public const string AIModel = SmallModel;
+        public const string AIModel = smallModel;
 
 
-
-        public Choices Choices = new Choices();
+        public Choices choices = new Choices();
 
         public readonly static Model model = new Model(AIModel);
         public readonly static VoskRecognizer voskRec = new VoskRecognizer(model, 44100);
         public SpeechRecognitionEngine winRec;
-
-
-        public Dictionary<string, Tuple<string, string>> Processes = new Dictionary<string, Tuple<string, string>>();
-
-        public Dictionary<string, string> Phrases = new Dictionary<string, string>();
-        public Dictionary<string, string> SynonymPhrases = new Dictionary<string, string>();
-        public Dictionary<string, Tuple<string, List<string>>> SynonymWords = new Dictionary<string, Tuple<string, List<string>>>();
 
         public readonly WaveInEvent waveIn = new WaveInEvent();
 
         readonly MainForm MainForm = (MainForm)System.Windows.Forms.Application.OpenForms["MainForm"];
 
 
+        public Dictionary<string, Tuple<string, string>> processes = new Dictionary<string, Tuple<string, string>>();
+
+        public Dictionary<string, string> phrases = new Dictionary<string, string>();
+        public Dictionary<string, string> synonymPhrases = new Dictionary<string, string>();
+        public Dictionary<string, Tuple<string, List<string>>> synonymWords = new Dictionary<string, Tuple<string, List<string>>>();
+
+
 
         private Choices GetChoiceLibrary()
         {
-            return Choices;
+            return choices;
         }
 
         private void CommandLibrary(string Command, string Parameter, string CasedParameter)
@@ -73,7 +72,7 @@ namespace WinFormsApp1.Classes
                 case "warn":
                     Classes.Spark.Warn(CasedParameter); break;
                 case "parameter":
-                    Classes.Spark.Log(CasedParameter, Classes.Spark.ParamColor); break;
+                    Classes.Spark.Log(CasedParameter, Classes.Spark.paramColor); break;
             }
         }
 
@@ -90,7 +89,7 @@ namespace WinFormsApp1.Classes
                     Classes.Spark.DebugLog("test");
                     return;
                 case "twitch_ban_recent":
-                    Classes.Twitch.BanRecent();
+                    Classes.Twitch.BanRecentUser();
                     return;
 
             }
@@ -101,13 +100,13 @@ namespace WinFormsApp1.Classes
             string Phrase = "%null%";
             string ActionID = "%null%";
 
-            if (Phrases.TryGetValue(VoskResult, out ActionID))
+            if (phrases.TryGetValue(VoskResult, out ActionID))
             {
                 Phrase = VoskResult;
             }
             else
             {
-                if (Phrases.TryGetValue(WinResult, out ActionID))
+                if (phrases.TryGetValue(WinResult, out ActionID))
                 {
                     Phrase = WinResult;
                 }
@@ -116,9 +115,9 @@ namespace WinFormsApp1.Classes
             Classes.Spark.DebugLog(Phrase);
             Classes.Spark.Respond(Phrase);
 
-            if (Classes.Spark.Responses.ContainsKey(Phrase))
+            if (Classes.Spark.responses.ContainsKey(Phrase))
             {
-                Classes.Spark.Responses.TryGetValue(Phrase, out string? value);
+                Classes.Spark.responses.TryGetValue(Phrase, out string? value);
                 Classes.Spark.Respond("CONTAINS KEYYY");
             }
 
@@ -128,7 +127,7 @@ namespace WinFormsApp1.Classes
         public void Load()
         {
             Classes.Command.RunCommand("say Big Sparked Testo!");
-            string api = RecognitionModel.ToLower();
+            string api = recognitionModel.ToLower();
             switch (api)
             {
                 case "vosk":
@@ -173,7 +172,7 @@ namespace WinFormsApp1.Classes
                     {
                         double Confidence = e.Result.Confidence * 100;
                         Classes.Spark.DebugLog("Confidence Check?");
-                        if (Confidence >= Sensitivity)
+                        if (Confidence >= sensitivity)
                         {
                             SpeechRecognised(e.Result.Text);
                             Classes.Spark.DebugLog("Confidence: " + Confidence);

@@ -19,7 +19,9 @@ namespace WinFormsApp1.Classes
     {
         readonly MainForm MainForm = (MainForm)System.Windows.Forms.Application.OpenForms["MainForm"];
 
-        public Dictionary<string, string> CommandList = new Dictionary<string, string>();
+
+        public Dictionary<string, string> commandList = new Dictionary<string, string>();
+
 
         private void CommandLibrary(string Command, string Parameter, string CasedParameter)
         {
@@ -46,7 +48,7 @@ namespace WinFormsApp1.Classes
                 case "warn":
                     Classes.Spark.Warn(CasedParameter); break;
                 case "parameter":
-                    Classes.Spark.Log(CasedParameter, Classes.Spark.ParamColor); break;
+                    Classes.Spark.Log(CasedParameter, Classes.Spark.paramColor); break;
             }
         }
 
@@ -60,7 +62,7 @@ namespace WinFormsApp1.Classes
             string[] Words = Command.Split(' ');
             string Result = string.Join(" ", Command.Split().Take(Words.Length));
 
-            if (CommandList.TryGetValue(Words.GetValue(0).ToString(), out string? String))
+            if (commandList.TryGetValue(Words.GetValue(0).ToString(), out string? String))
             {
                 Command = Words.GetValue(0).ToString();
 
