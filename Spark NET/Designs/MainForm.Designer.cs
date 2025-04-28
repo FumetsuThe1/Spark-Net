@@ -82,6 +82,7 @@
             ConsoleBar.Size = new Size(998, 28);
             ConsoleBar.TabIndex = 3;
             ConsoleBar.Text = "Enter Command..";
+            ConsoleBar.KeyPress += ConsoleBar_KeyPress;
             // 
             // MainForm
             // 

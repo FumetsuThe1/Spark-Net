@@ -57,13 +57,20 @@ namespace WinFormsApp1.Designs
                 Classes.Spark.HandleExit();
             }
         }
-    }
 
+        private void ConsoleBar_KeyPress(object sender, KeyPressEventArgs e)
+        {
+            if (e.KeyChar == (char)Keys.Enter)
+            {
+                string input = ConsoleBar.Text;
+                ConsoleBar.Clear();
+                Classes.Spark.SendCommand(input);
+            }
+        }
+    }
 
     public class Classes
     {
         static public Spark Spark = new Spark();
-        static public Recognition Recognition = new Recognition();
-        static public Command Command = new Command();
     }
 }

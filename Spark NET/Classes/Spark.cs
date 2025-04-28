@@ -419,6 +419,11 @@ namespace WinFormsApp1.Classes
             PlaySound("Started.mp3");
         }
 
+        public void SendCommand(string String)
+        {
+            Command.RunCommand(String);
+        }
+
         public void Startup()
         {
             if (enableRecognition)
