@@ -6,9 +6,9 @@ using System.Speech.Recognition;
 using System.Text;
 using System.Threading.Tasks;
 using NAudio.Wave;
-using WinFormsApp1.Classes;
-using Vosk;
 using WinFormsApp1.Designs;
+using Vosk;
+using WinFormsApp1.Classes;
 
  // Fix Responses Not Working
 
@@ -23,6 +23,7 @@ namespace WinFormsApp1.Classes
         const string largeModel = @"E:\Files\AI Models\vosk-model-en-us-0.22\vosk-model-en-us-0.22";
 
         public const string AIModel = smallModel;
+        public bool recognitionLoaded = false;
 
 
         public Choices choices = new Choices();
@@ -33,7 +34,8 @@ namespace WinFormsApp1.Classes
 
         public readonly WaveInEvent waveIn = new WaveInEvent();
 
-        readonly MainForm MainForm = (MainForm)System.Windows.Forms.Application.OpenForms["MainForm"];
+        MainForm MainForm = (MainForm)System.Windows.Forms.Application.OpenForms["MainForm"];
+        Spark Spark = Classes.Spark;
 
 
         public Dictionary<string, Tuple<string, string>> processes = new Dictionary<string, Tuple<string, string>>();
@@ -51,49 +53,62 @@ namespace WinFormsApp1.Classes
 
         private void CommandLibrary(string Command, string Parameter, string CasedParameter)
         {
-            switch (Command)
+            if (Spark.enableRecognition)
             {
-                case "exit":
-                    Application.Exit(); break;
-                case "crash":
-                    throw new Exception();
+                switch (Command)
+                {
+                    case "exit":
+                        Application.Exit(); break;
+                    case "crash":
+                        throw new Exception();
 
-                case "start":
-                    Classes.Spark.Startup(); break;
-                case "stop":
-                    Classes.Spark.Shutdown(); break;
-                case "restart":
-                    Classes.Spark.Restart(); break;
+                    case "start":
+                        Classes.Spark.Startup(); break;
+                    case "stop":
+                        Classes.Spark.Shutdown(); break;
+                    case "restart":
+                        Classes.Spark.Restart(); break;
 
-                case "say":
-                    Classes.Spark.Say(CasedParameter); break;
-                case "debug":
-                    Classes.Spark.DebugLog(CasedParameter); break;
-                case "warn":
-                    Classes.Spark.Warn(CasedParameter); break;
-                case "parameter":
-                    Classes.Spark.Log(CasedParameter, Classes.Spark.paramColor); break;
+                    case "say":
+                        Classes.Spark.Say(CasedParameter); break;
+                    case "debug":
+                        Classes.Spark.DebugLog(CasedParameter); break;
+                    case "warn":
+                        Classes.Spark.Warn(CasedParameter); break;
+                    case "parameter":
+                        Classes.Spark.Log(CasedParameter, Classes.Spark.paramColor); break;
+                }
+            }
+            else
+            {
+                Spark.DebugLog("Failed to run recognition command! Recognition is not enabled!");
             }
         }
 
 
 
-        private void SwitchCase(string ID, string WinResult = "%null%", string VoskResult = "%null%")
+        private void RunAction(string ID, string WinResult = "%null%", string VoskResult = "%null%")
         {
-
-            switch (ID)
+            if (Spark.enableRecognition)
             {
-                default:
-                    return;
-                case "debuglog":
-                    Classes.Spark.DebugLog("test");
-                    return;
-                case "twitch_ban_recent":
-                    Classes.Twitch.BanRecentUser();
-                    return;
-                case "clip_that":
-                    Classes.Twitch.CreateClip();
-                    return;
+                switch (ID)
+                {
+                    default:
+                        return;
+                    case "debuglog":
+                        Classes.Spark.DebugLog("test");
+                        return;
+                    case "twitch_ban_recent":
+                        Classes.Twitch.BanRecentUser();
+                        return;
+                    case "clip_that":
+                        Classes.Twitch.CreateClip();
+                        return;
+                }
+            }
+            else
+            {
+                Spark.DebugLog("Failed to run recognition command! Recognition is not enabled!");
             }
         }
 
@@ -123,70 +138,73 @@ namespace WinFormsApp1.Classes
                 Classes.Spark.Respond("CONTAINS KEYYY");
             }
 
-            SwitchCase(ActionID, WinResult, VoskResult);
+            RunAction(ActionID, WinResult, VoskResult);
         }
 
-        public void Load()
+        public void Load(bool forceLoad = false)
         {
-            Classes.Command.RunCommand("say Big Sparked Testo!");
-            string api = recognitionModel.ToLower();
-            switch (api)
+            if (Spark.enableRecognition || forceLoad)
             {
-                case "vosk":
-                    if (Directory.Exists(AIModel))
-                    {
-                        string fileName = "TestRecording_Vosk.wav";
-                        Classes.Spark.DebugLog("Vosk Speech Recognition Activated!");
-                        WaveFormat waveFormat = new WaveFormat(44100, 1);
-                        WaveFileWriter waveFileWriter = new WaveFileWriter(fileName, waveFormat);
-
-                        void AudioDetected(object? sender, WaveInEventArgs e)
+                Classes.Command.RunCommand("say Big Sparked Testo!");
+                string api = recognitionModel.ToLower();
+                switch (api)
+                {
+                    case "vosk":
+                        if (Directory.Exists(AIModel))
                         {
-                            waveFileWriter.Write(e.Buffer, 0, e.BytesRecorded);
-                            if (voskRec.AcceptWaveform(e.Buffer, e.BytesRecorded))
+                            string fileName = "TestRecording_Vosk.wav";
+                            Classes.Spark.DebugLog("Vosk Speech Recognition Activated!");
+                            WaveFormat waveFormat = new WaveFormat(44100, 1);
+                            WaveFileWriter waveFileWriter = new WaveFileWriter(fileName, waveFormat);
+
+                            void AudioDetected(object? sender, WaveInEventArgs e)
                             {
-                                Classes.Spark.DebugLog(voskRec.Result());
+                                waveFileWriter.Write(e.Buffer, 0, e.BytesRecorded);
+                                if (voskRec.AcceptWaveform(e.Buffer, e.BytesRecorded))
+                                {
+                                    Classes.Spark.DebugLog(voskRec.Result());
+                                }
+                            }
+
+                            waveIn.WaveFormat = waveFormat;
+                            waveIn.DataAvailable += AudioDetected;
+                            waveIn.StartRecording();
+
+                            Classes.Spark.SparkStarted();
+                        }
+                        else
+                        {
+                            Classes.Spark.Warn("Recognition Model doesn't exist!");
+                            Classes.Spark.Shutdown();
+                        }
+                        break;
+                    case "windows":
+                        winRec = new SpeechRecognitionEngine(new System.Globalization.CultureInfo("en-US"));
+
+                        var GrammarBuilder = new Grammar(GetChoiceLibrary());
+                        winRec.LoadGrammar(GrammarBuilder);
+
+                        winRec.SpeechRecognized += new EventHandler<SpeechRecognizedEventArgs>(WinSpeechRecognised);
+                        winRec.SetInputToDefaultAudioDevice();
+
+                        void WinSpeechRecognised(object? sender, SpeechRecognizedEventArgs e)
+                        {
+                            double Confidence = e.Result.Confidence * 100;
+                            Classes.Spark.DebugLog("Confidence Check?");
+                            if (Confidence >= sensitivity)
+                            {
+                                SpeechRecognised(e.Result.Text);
+                                Classes.Spark.DebugLog("Confidence: " + Confidence);
                             }
                         }
 
-                        waveIn.WaveFormat = waveFormat;
-                        waveIn.DataAvailable += AudioDetected;
-                        waveIn.StartRecording();
-
+                        winRec.RecognizeAsync(RecognizeMode.Multiple);
                         Classes.Spark.SparkStarted();
-                    }
-                    else
-                    {
-                        Classes.Spark.Warn("Recognition Model doesn't exist!");
-                        Classes.Spark.Shutdown();
-                    }
-                    break;
-                case "windows":
-                    winRec = new SpeechRecognitionEngine(new System.Globalization.CultureInfo("en-US"));
+                        break;
+                    case "vosk backing":
 
-                    var GrammarBuilder = new Grammar(GetChoiceLibrary());
-                    winRec.LoadGrammar(GrammarBuilder);
-
-                    winRec.SpeechRecognized += new EventHandler<SpeechRecognizedEventArgs>(WinSpeechRecognised);
-                    winRec.SetInputToDefaultAudioDevice();
-
-                    void WinSpeechRecognised(object? sender, SpeechRecognizedEventArgs e)
-                    {
-                        double Confidence = e.Result.Confidence * 100;
-                        Classes.Spark.DebugLog("Confidence Check?");
-                        if (Confidence >= sensitivity)
-                        {
-                            SpeechRecognised(e.Result.Text);
-                            Classes.Spark.DebugLog("Confidence: " + Confidence);
-                        }
-                    }
-
-                    winRec.RecognizeAsync(RecognizeMode.Multiple);
-                    Classes.Spark.SparkStarted();
-                    break;
-                case "vosk backing":
-
-                    break;
+                        break;
+                }
             }
         }
     }

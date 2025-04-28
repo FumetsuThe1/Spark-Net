@@ -20,18 +20,22 @@ using System.Security.Policy;
 using static System.Net.Mime.MediaTypeNames;
 using System.Drawing;
 using System.Text.Json;
-using static WinFormsApp1.Classes.Twitch;
 using static System.Formats.Asn1.AsnWriter;
+using Spark_NET.Classes;
+using NAudio.Wave;
 
 
 // Add Global Keybind Support
+// Add OBS Connection
 
 namespace WinFormsApp1.Classes
 {
     public class Spark
     {
-        public bool twitchConnection = true;
+        public bool twitchConnection = false;
         public bool enableRecognition = true;
+        public bool obsConnection = false;
+        public bool commandConnection = true;
 
         readonly MainForm MainForm = (MainForm)System.Windows.Forms.Application.OpenForms["MainForm"];
         Twitch Twitch = Classes.Twitch;
@@ -56,8 +60,8 @@ namespace WinFormsApp1.Classes
         public readonly Color responseColor = Color.Aqua;
 
         public readonly Color speechColor = Color.FromArgb(103, 36, 237);
-        readonly Color warningColor = Color.Red;
-        readonly Color utilColor = Color.FromArgb(237, 183, 36);
+        public readonly Color warningColor = Color.Red;
+        public readonly Color utilColor = Color.FromArgb(237, 183, 36);
 
         public readonly Color paramColor = Color.Pink;
         readonly Color processColor = Color.Green;
@@ -69,8 +73,53 @@ namespace WinFormsApp1.Classes
         public string binData = Path.Combine(Environment.CurrentDirectory, "Data");
         public string twitchPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Spark NET", "Twitch");
         public string optionsPath = Path.Combine(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Spark NET"), "Settings.json");
+        public string soundsPath = Path.Combine(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Spark NET"), "Sounds");
 
         public Dictionary<string, string> responses = new Dictionary<string, string>();
+
+        public void PlaySound(string Sound, string? soundPath = null)
+        {
+            if (soundPath == null)
+            {
+                soundPath = soundsPath;
+            }
+
+            if (File.Exists(Path.Combine(soundPath, Sound)))
+            {
+                string extensionType = Path.GetExtension(Path.Combine(soundPath, Sound));
+                var waveOut = new WaveOut();
+                switch (extensionType)
+                {
+                    case ".wav":
+                        var wavreader = new WaveFileReader(Path.Combine(soundPath, Sound));
+                        waveOut.Init(wavreader);
+                        waveOut.Play();
+                        waveOut.PlaybackStopped += (s, e) =>
+                        {
+                            waveOut.Dispose();
+                            wavreader.Dispose();
+                        };
+                        break;
+                    case ".mp3":
+                        var mp3reader = new Mp3FileReader(Path.Combine(soundPath, Sound));
+                        waveOut.Init(mp3reader);
+                        waveOut.Play();
+                        waveOut.PlaybackStopped += (s, e) =>
+                        {
+                            waveOut.Dispose();
+                            mp3reader.Dispose();
+                        };
+                        break;
+                    default:
+                        Warn("Tried to play unsupported sound type: " + extensionType);
+                        break;
+                }
+            }
+            else
+            {
+                DebugLog("Failed to play sound! Sound doesn't exist!");
+            }
+        }
 
         public string GetCurrentTime()
         {
@@ -138,6 +187,7 @@ namespace WinFormsApp1.Classes
                 Directory.CreateDirectory(Path);
             }
         }
+
         public async Task CreateFile(string Path, string? FileName = null)
         {
             if (FileName != null)
@@ -158,12 +208,16 @@ namespace WinFormsApp1.Classes
             await CreatePath(Path.Combine(twitchPath, "Twitch Logs"));
             await CreatePath(binData);
             await CreateFile(Path.Combine(binData, "Client.json"));
+            await CreatePath(soundsPath);
+            await CreatePath(Path.Combine(soundsPath, "Twitch"));
 
             ResetLog();
 
             DebugLog("Spark Loaded!");
             BuildLibrary();
+            Command.AppLoad();
             await Twitch.AppLoad();
+            PlaySound("Startup.mp3");
         }
 
         private void BuildLibrary()
@@ -214,26 +268,30 @@ namespace WinFormsApp1.Classes
 
         public void Shutdown()
         {
-            MainForm.PowerButton.Text = "Stopping";
-            MainForm.PowerButton.Enabled = false;
-
-            string api = Recognition.recognitionModel.ToLower();
-            if (powered)
+            PlaySound("Shutdown.mp3");
+            if (Classes.Recognition.recognitionLoaded)
             {
-                Classes.Recognition.waveIn.StopRecording();
-                Classes.Recognition.waveIn.Dispose();
-                if (api == "windows" || api == "vosk backing")
+                MainForm.PowerButton.Text = "Stopping";
+                MainForm.PowerButton.Enabled = false;
+
+                string api = Recognition.recognitionModel.ToLower();
+                if (powered)
                 {
-                    Classes.Recognition.winRec.RecognizeAsyncStop();
-                    Classes.Recognition.winRec.Dispose();
-                }
-                powered = false;
-                MainForm.PowerButton.Text = "Start";
-                MainForm.PowerButton.Enabled = true;
-                if (sparkPowered)
-                {
-                    sparkPowered = false;
-                    Log("Spark has been shutdown.", utilColor);
+                    Classes.Recognition.waveIn.StopRecording();
+                    Classes.Recognition.waveIn.Dispose();
+                    if (api == "windows" || api == "vosk backing")
+                    {
+                        Classes.Recognition.winRec.RecognizeAsyncStop();
+                        Classes.Recognition.winRec.Dispose();
+                    }
+                    powered = false;
+                    MainForm.PowerButton.Text = "Start";
+                    MainForm.PowerButton.Enabled = true;
+                    if (sparkPowered)
+                    {
+                        sparkPowered = false;
+                        Log("Spark has been shutdown.", utilColor);
+                    }
                 }
             }
             Command.RunCommand("say big testo biggo!");
@@ -241,15 +299,7 @@ namespace WinFormsApp1.Classes
 
         private void AddCommand(string String, bool VA = false)
         {
-            String = String.ToLower();
-            if (!Classes.Command.commandList.ContainsKey(String))
-            {
-                Classes.Command.commandList.Add(String, String);
-            }
-            if (VA)
-            {
-                Classes.Recognition.choices.Add(osName + String);
-            }
+            Command.Add(String, VA);
         }
 
         public void Respond(string Phrase)
@@ -344,7 +394,9 @@ namespace WinFormsApp1.Classes
             DebugLog(Response);
             MainForm.ConsoleBox.AppendText(" - SPARK: " + Response, responseColor);
             MainForm.ConsoleBox.AppendText(Environment.NewLine, Color.White);
+            PlaySound("Response.mp3");
         }
+
         public void Warn(string Text)
         {
             if (noActions)
@@ -353,30 +405,39 @@ namespace WinFormsApp1.Classes
             }
             Log("Warning! " + Text, warningColor);
             noActions = false;
+            PlaySound("Warning.mp3");
         }
 
         public void SparkStarted()
         {
             Log("Spark has been started!", utilColor);
 
+            Classes.Recognition.recognitionLoaded = true;
             sparkPowered = true;
             MainForm.PowerButton.Text = "Stop";
             MainForm.PowerButton.Enabled = true;
+            PlaySound("Started.mp3");
         }
 
         public void Startup()
         {
-            if (!powered)
+            if (enableRecognition)
             {
-                MainForm.PowerButton.Text = "Starting";
-                MainForm.PowerButton.Enabled = false;
-                powered = true;
-                if (resetLogs || noActions)
+                if (!powered)
                 {
-                    ClearLog();
+                    MainForm.PowerButton.Text = "Starting";
+                    MainForm.PowerButton.Enabled = false;
+                    powered = true;
+                    if (resetLogs || noActions)
+                    {
+                        ClearLog();
+                    }
+                    Recognition.Load();
                 }
-                Classes.Recognition.Load();
-                Respond("bank");
+            }
+            else
+            {
+                Warn("Recognition Module is not loaded!");
             }
         }
 
@@ -437,5 +498,15 @@ namespace WinFormsApp1.Classes
         public bool enableLogging { get; set; }
         public bool resetLogs { get; set; }
         public bool twitchConnection { get; set; }
+    }
+
+    public class Classes
+    {
+        public static MainForm MainForm = new MainForm();
+        public static Spark Spark = new Spark();
+        public static Recognition Recognition = new Recognition();
+        public static Twitch Twitch = new Twitch();
+        public static Command Command = new Command();
+        public static OBS OBS = new OBS();
     }
 }

@@ -8,14 +8,16 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using WinFormsApp1.Classes;
+using WinFormsApp1.Designs;
 
 namespace WinFormsApp1.Designs
 {
     public partial class MainForm : Form
     {
+        Classes Classes = new Classes();
+
         private bool Closing = false;
         public bool ExitComplete = false;
-        Classes Classes = new Classes();
 
         public MainForm()
         {
@@ -57,9 +59,11 @@ namespace WinFormsApp1.Designs
         }
     }
 
+
     public class Classes
     {
-        public static Spark Spark = new Spark();
-        public static Twitch Twitch = new Twitch();
+        static public Spark Spark = new Spark();
+        static public Recognition Recognition = new Recognition();
+        static public Command Command = new Command();
     }
 }

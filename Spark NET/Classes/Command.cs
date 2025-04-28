@@ -3,21 +3,17 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Xml.Linq;
+using Spark_NET.Classes;
 using WinFormsApp1.Designs;
 
 namespace WinFormsApp1.Classes
 {
-    public class Classes
-    {
-        public static Spark Spark = new Spark();
-        public static Recognition Recognition = new Recognition();
-        public static Twitch Twitch = new Twitch();
-        public static Command Command = new Command();
-    }
-
     public class Command
     {
-        readonly MainForm MainForm = (MainForm)System.Windows.Forms.Application.OpenForms["MainForm"];
+        MainForm MainForm = (MainForm)System.Windows.Forms.Application.OpenForms["MainForm"];
+        Spark Spark = Classes.Spark;
+        Recognition Recognition = Classes.Recognition;
 
 
         public Dictionary<string, string> commandList = new Dictionary<string, string>();
@@ -52,35 +48,78 @@ namespace WinFormsApp1.Classes
             }
         }
 
+        public void Add(string String, bool VA = false)
+        {
+            String = String.ToLower();
+            commandList.Add(String, String);
+            if (!commandList.ContainsKey(String))
+            {
+                
+            }
+            if (VA)
+            {
+                Recognition.choices.Add(Spark.osName + String);
+            }
+        }
+
+        private void ConsoleBar_KeyPress(object? sender, KeyPressEventArgs e)
+        {
+            if (e.KeyChar == (char)Keys.Enter)
+            {
+                string command = MainForm.ConsoleBox.Text;
+                MainForm.ConsoleBox.Clear();
+                RunCommand("say ah booga");
+            }
+        }
+
         public void RunCommand(string Command, string Parameter = "%null%")
         {
-            string CasedParameter = Parameter;
-            string CasedCommand = Command;
-
-            Command = Command.ToLower();
-
-            string[] Words = Command.Split(' ');
-            string Result = string.Join(" ", Command.Split().Take(Words.Length));
-
-            if (commandList.TryGetValue(Words.GetValue(0).ToString(), out string? String))
+            foreach (string word in commandList.Keys)
             {
-                Command = Words.GetValue(0).ToString();
+                Spark.DebugLog("Found Key: " + word);
+            }
+            Spark.DebugLog("Running Command: " + Command);
+            if (Spark.commandConnection)
+            {
+                string CasedParameter = Parameter;
+                string CasedCommand = Command;
 
-                if (Words.Length > 1)
+                Command = Command.ToLower();
+
+                string[] Words = Command.Split(' ');
+                string Result = string.Join(" ", Command.Split().Take(Words.Length));
+
+                Spark.DebugLog("Command: " + Words[0]);
+
+                if (commandList.TryGetValue(Words[0], out string? String))
                 {
-                    CasedParameter = CasedCommand.Substring(Command.Length + 1);
-                    Parameter = CasedParameter.ToLower();
+                    Command = Words[0];
+
+                    if (Words.Length > 1)
+                    {
+                        CasedParameter = CasedCommand.Substring(Command.Length + 1);
+                        Parameter = CasedParameter.ToLower();
+                    }
+
+                    Classes.Spark.DebugLog("Command: " + Command);
+                    Classes.Spark.DebugLog("Parameter: " + Parameter);
+
+                    CommandLibrary(Command, Parameter, CasedParameter);
                 }
-
-                Classes.Spark.DebugLog("Command: " + Command);
-                Classes.Spark.DebugLog("Parameter: " + Parameter);
-
-                CommandLibrary(Command, Parameter, CasedParameter);
+                else
+                {
+                    Classes.Spark.Warn("Command Not Found!");
+                }
             }
             else
             {
-                Classes.Spark.Warn("Command Not Found!");
+                Spark.Log("Failed to run command! Command Connection is disabled!", Spark.utilColor);
             }
+        }
+
+        public void AppLoad()
+        {
+            MainForm.ConsoleBox.KeyPress += ConsoleBar_KeyPress;
         }
     }
 }

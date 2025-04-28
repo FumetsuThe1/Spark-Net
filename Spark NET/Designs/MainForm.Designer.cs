@@ -31,6 +31,7 @@
             ConsoleBox = new RichTextBox();
             PowerButton = new Button();
             ClearButton = new Button();
+            ConsoleBar = new RichTextBox();
             SuspendLayout();
             // 
             // ConsoleBox
@@ -68,12 +69,27 @@
             ClearButton.UseVisualStyleBackColor = true;
             ClearButton.Click += ClearButton_Click;
             // 
+            // ConsoleBar
+            // 
+            ConsoleBar.BackColor = Color.FromArgb(32, 32, 32);
+            ConsoleBar.BorderStyle = BorderStyle.None;
+            ConsoleBar.Font = new Font("Segoe UI", 14F);
+            ConsoleBar.ForeColor = Color.White;
+            ConsoleBar.Location = new Point(0, 446);
+            ConsoleBar.Multiline = false;
+            ConsoleBar.Name = "ConsoleBar";
+            ConsoleBar.ScrollBars = RichTextBoxScrollBars.None;
+            ConsoleBar.Size = new Size(998, 28);
+            ConsoleBar.TabIndex = 3;
+            ConsoleBar.Text = "Enter Command..";
+            // 
             // MainForm
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             BackColor = Color.FromArgb(24, 24, 24);
             ClientSize = new Size(998, 524);
+            Controls.Add(ConsoleBar);
             Controls.Add(ClearButton);
             Controls.Add(PowerButton);
             Controls.Add(ConsoleBox);
@@ -90,5 +106,6 @@
         public RichTextBox ConsoleBox;
         public Button PowerButton;
         public Button ClearButton;
+        private RichTextBox ConsoleBar;
     }
 }

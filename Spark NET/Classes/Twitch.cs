@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using TwitchLib.Client.Models;
 using TwitchLib.Client;
 using WinFormsApp1;
-using WinFormsApp1.Classes;
+using WinFormsApp1.Designs;
 using WinFormsApp1.Designs;
 using System.Reflection.Metadata;
 using TwitchLib.Api;
@@ -34,6 +34,7 @@ using TwitchLib.Api.Core.HttpCallHandlers;
 // Add support for Same-Date Twitch Logs
 // Add more Twitch Logging (Chat Commands, Unbans, Channel Points, Followers, Subs, Title Changes, Category Changes)
 // Add Channel Bot Support?
+// Add support for disposing of Access Tokens
 
 namespace WinFormsApp1.Classes
 {
@@ -56,7 +57,7 @@ namespace WinFormsApp1.Classes
         string accessToken = "%null%";
         string refreshToken = "%null%";
 
-        readonly MainForm MainForm = (MainForm)System.Windows.Forms.Application.OpenForms["MainForm"];
+        MainForm MainForm = (MainForm)System.Windows.Forms.Application.OpenForms["MainForm"];
         NHttp.HttpServer WebServer;
         Spark Spark = Classes.Spark;
 
@@ -72,7 +73,10 @@ namespace WinFormsApp1.Classes
         List<string> channelPointLogs = new List<string>();
         List<string> viewerLogs = new List<string>();
 
+        List<string> whoVisited = new List<string>();
+
         List<Tuple<string, List<string>>> logList = new List<Tuple<string, List<string>>>();
+
 
         Dictionary<string, string> chatCommands = new Dictionary<string, string>();
         string oldScopes = "%null%";
@@ -81,65 +85,101 @@ namespace WinFormsApp1.Classes
         TwitchClient twitchClient = new TwitchClient();
         public TwitchAPI API = new TwitchAPI();
 
+        int currentViewers = 0;
+
 
         #region Methods
 
         public void CreateClip()
         {
-            API.Settings.ClientId = clientID;
-            API.Settings.AccessToken = accessToken;
-            var Clip = API.Helix.Clips.CreateClipAsync(GetBroadcasterID(), accessToken);
-            Log("Clip Created!");
+            if (twitchClient.IsConnected)
+            {
+                var Clip = API.Helix.Clips.CreateClipAsync(GetBroadcasterID(), accessToken);
+                Log("Clip Created!");
+            }
+            else
+            {
+                Log("Failed to create clip! Twitch Client not connected!");
+            }
+
         }
 
         public void JoinChannel(string? Channel = null)
         {
-            if (Channel == null)
+            if (twitchClient.IsConnected)
             {
-                Channel = GetChannel();
-                channelName = Channel;
-                twitchClient.JoinChannel(Channel);
+                if (Channel == null)
+                {
+                    Channel = GetChannel();
+                    channelName = Channel;
+                    twitchClient.JoinChannel(Channel);
+                }
+                else
+                {
+                    channelName = Channel;
+                    twitchClient.JoinChannel(Channel);
+                }
             }
             else
             {
-                channelName = Channel;
-                twitchClient.JoinChannel(Channel);
+                Log("Failed to join channel! Twitch Client is not connected!");
             }
         }
 
         public void LeaveChannel(string? Channel = null)
         {
-            if (Channel == null)
+            if (twitchClient.IsConnected)
             {
-                Channel = GetChannel();
+                if (Channel == null)
+                {
+                    Channel = GetChannel();
+                }
+                twitchClient.LeaveChannel(Channel);
             }
-            twitchClient.LeaveChannel(Channel);
+            else
+            {
+                Log("Failed to leave channel! Twitch Client is not connected!");
+            }
         }
 
 
 
         public void SendAnnouncement(string Message, string? Channel = null)
         {
-            if (Channel == null)
+            if (twitchClient.IsConnected)
             {
-                Channel = GetChannel();
+                if (Channel == null)
+                {
+                    Channel = GetChannel();
+                }
+                twitchClient.Announce(Channel, Message);
             }
-            twitchClient.Announce(Channel, Message);
+            else
+            {
+                Log("Failed to send announcement! Twitch Client is not connected!");
+            }
         }
 
         public void FollowersOnly(bool Value, string? Channel = null)
         {
-            if (Channel == null)
+            if (twitchClient.IsConnected)
             {
-                Channel = GetChannel();
-            }
-            if (Value == true)
-            {
-                twitchClient.FollowersOnlyOn(Channel, TimeSpan.FromHours(48));
+                if (Channel == null)
+                {
+                    Channel = GetChannel();
+                }
+                if (Value == true)
+                {
+                    twitchClient.FollowersOnlyOn(Channel, TimeSpan.FromHours(48));
+                }
+                else
+                {
+                    twitchClient.FollowersOnlyOff(Channel);
+                }
             }
             else
             {
-                twitchClient.FollowersOnlyOff(Channel);
+                Log("Failed to set followers only! Twitch Client is not connected!");
             }
         }
 
@@ -175,30 +215,35 @@ namespace WinFormsApp1.Classes
         /// </summary>
         /// <param name="userID"></param>
         /// <returns></returns>
-        public async Task BanUser(string userID, int duration = -1)
+        public async Task BanUser(string userID, int duration = -1, string? Reason = "")
         {
-            API.Settings.AccessToken = accessToken;
-            API.Settings.ClientId = clientID;
-            try
+            if (twitchClient.IsConnected)
             {
-                await API.Helix.Moderation.BanUserAsync(
-                GetBroadcasterID(),                 // broadcasterId: *which* channel to ban the user from; hope you're a mod there!
-                GetBroadcasterID(),                 // moderatorId: *who* is running the ban. This should be the same as the broadcasterId
-                new TwitchLib.Api.Helix.Models.Moderation.BanUser.BanUserRequest
+                try
                 {
-                    UserId = userID,    // *who* is getting banned
-                    Reason = "test",    // (optional) *why* are they getting banned
-                    Duration = null // (optional) how long to time them out for, or `null` a for perma-ban
-                },
-                      accessToken                  // accessToken: (optional) required to ban *as* someone else, or *if* skipped above
-                );
-                Log("Banned Twitch User: " + GetUserFromID(userID) + "for " + duration);
-                StoreLog(moderationLogs, GetUserFromID(userID) + " has been banned for " + duration + " seconds!");
+                    await API.Helix.Moderation.BanUserAsync(
+                    GetBroadcasterID(),                 // broadcasterId: *which* channel to ban the user from; hope you're a mod there!
+                    GetBroadcasterID(),                 // moderatorId: *who* is running the ban. This should be the same as the broadcasterId
+                    new TwitchLib.Api.Helix.Models.Moderation.BanUser.BanUserRequest
+                    {
+                        UserId = userID,    // *who* is getting banned
+                        Reason = Reason,    // (optional) *why* are they getting banned
+                        Duration = null // (optional) how long to time them out for, or `null` a for perma-ban
+                    },
+                          accessToken                  // accessToken: (optional) required to ban *as* someone else, or *if* skipped above
+                    );
+                    Log("Banned Twitch User: " + GetUserFromID(userID) + "for " + duration);
+                    StoreLog(moderationLogs, GetUserFromID(userID) + " has been banned for " + duration + " seconds!");
+                }
+                catch (Exception)
+                {
+                    Log("Ban Failed! Invalid Ban Credentials!");
+                    throw;
+                }
             }
-            catch (Exception)
+            else
             {
-                Log("Ban Failed! Invalid Ban Credentials!");
-                throw;
+                Log("Failed to ban user! Twitch Client is not connected!");
             }
         }
 
@@ -209,12 +254,19 @@ namespace WinFormsApp1.Classes
         /// <param name="Message"></param>
         public void SendMessage(string Message, string? Channel = null)
         {
-            if (Channel == null)
+            if (twitchClient.IsConnected)
             {
-                Channel = channelName;
+                if (Channel == null)
+                {
+                    Channel = channelName;
+                }
+                Spark.DebugLog(channelName);
+                twitchClient.SendMessage(channelName, Message);
             }
-            Spark.DebugLog(channelName);
-            twitchClient.SendMessage(channelName, Message);
+            else
+            {
+                Log("Failed to send message! Twitch Client is not connected!");
+            }
         }
 
 
@@ -223,7 +275,8 @@ namespace WinFormsApp1.Classes
         /// </summary>
         public void BanRecentUser()
         {
-            BanUser(RecentUser);
+            BanUser(RecentUser, -1, "Banned by SPARK");
+            PlaySound("BannedRecentUser.mp3");
         }
 
 
@@ -318,19 +371,19 @@ namespace WinFormsApp1.Classes
                             }
                         }
                     };
-                    API.Settings.AccessToken = accessToken;
+                    Spark.DebugLog(accessToken);
                     ValidateAccessTokenResponse TokenResponse = await API.Auth.ValidateAccessTokenAsync(accessToken);
 
                     if (TokenResponse == null || oldScopes != scopes)
                     {
                         var Values = new Dictionary<string, string>
-                {
-                { "client_id", clientID },
+                        {
+                  { "client_id", clientID },
                 { "force_verify", "false" },
                 { "redirect_uri", DirectURL },
                 { "response_type", "code" },
                 { "scope", scopes},
-            };
+                        };
                         var Content = new FormUrlEncodedContent(Values);
 
 
@@ -376,8 +429,6 @@ namespace WinFormsApp1.Classes
 
         public string GetBroadcasterID()
         {
-            API.Settings.AccessToken = accessToken;
-            API.Settings.ClientId = clientID;
             var User = API.Helix.Users.GetUsersAsync();
             channelID = User.Result.Users[0].Id.ToString();
             return channelID;
@@ -403,7 +454,6 @@ namespace WinFormsApp1.Classes
             var Json = JsonObject.Parse(ResponseString);
             accessToken = Json["access_token"].ToString();
             refreshToken = Json["refresh_token"].ToString();
-            Spark.DebugLog(accessToken);
             client.CancelPendingRequests();
             client.Dispose();
             return new Tuple<string, string>(Json["access_token"].ToString(), Json["refresh_token"].ToString());
@@ -424,6 +474,7 @@ namespace WinFormsApp1.Classes
 
         private void ViewerLeft(object? sender, TwitchLib.Client.Events.OnUserLeftArgs e)
         {
+            currentViewers = -1;
             string Viewer = e.Username;
             StoreLog(viewerLogs, " " + Spark.GetCurrentTime() + "  -  " + Viewer + " has left the stream!");
             Log("Viewer Left: " + Viewer);
@@ -431,9 +482,9 @@ namespace WinFormsApp1.Classes
 
         private void ViewerJoined(object? sender, TwitchLib.Client.Events.OnUserJoinedArgs e)
         {
+            currentViewers = +1;
             string Viewer = e.Username;
             StoreViewer(Viewer);
-            StoreLog(streamLogs, " " + Spark.GetCurrentTime() + "  -  " + Viewer + " joined the stream!");
             Log("Viewer Joined: " + Viewer);
         }
 
@@ -482,6 +533,11 @@ namespace WinFormsApp1.Classes
 
         #region AppHandling
 
+        private void PlaySound(string Sound)
+        {
+            Spark.PlaySound(Sound, Path.Combine(Classes.Spark.soundsPath, "Twitch"));
+        }
+
         private void ConnectEvents()
         {
             twitchClient.OnUserBanned += UserBanned;
@@ -502,7 +558,8 @@ namespace WinFormsApp1.Classes
             if (!viewerLogs.Contains(Viewer))
             {
                 EnsureLimit(viewerLogs, 5000, true);
-                viewerLogs.Add(Viewer);
+                whoVisited.Add(Viewer);
+                StoreLog(viewerLogs, " " + Spark.GetCurrentTime() + "  -  " + Viewer + " has joined the stream!");
             }
         }
 
@@ -586,6 +643,31 @@ namespace WinFormsApp1.Classes
         {
             LoadLogList();
 
+            var data = new List<ClientData>
+            {
+                new ClientData
+                {
+                    Client_ID = clientID,
+                    Client_Secret = clientSecret,
+
+                    Refresh_Token = refreshToken,
+                    Access_Token = accessToken,
+                    Scopes = scopes
+                }
+            };
+
+            var options = new JsonSerializerOptions
+            {
+                WriteIndented = true,
+            };
+
+            string jsonString = JsonSerializer.Serialize(data, options);
+
+            await using (StreamWriter swc = new StreamWriter(clientDataPath))
+            {
+                await swc.WriteLineAsync(jsonString);
+            }
+
             foreach (Tuple<string, List<string>> list in logList)
             {
                 if (!IsEmpty(list.Item2) || ForceSave)
@@ -607,13 +689,14 @@ namespace WinFormsApp1.Classes
 
         public void LoadLogList()
         {
-            viewerLogs.Sort();
+            whoVisited.Sort();
             logList.Add(new Tuple<string, List<string>>("Stream", streamLogs));
             logList.Add(new Tuple<string, List<string>>("Twitch Log", twitchLogs));
             logList.Add(new Tuple<string, List<string>>("Messages", messageLogs));
             logList.Add(new Tuple<string, List<string>>("Moderation", moderationLogs));
             logList.Add(new Tuple<string, List<string>>("Channel Points", channelPointLogs));
             logList.Add(new Tuple<string, List<string>>("Viewers", viewerLogs));
+            logList.Add(new Tuple<string, List<string>>("Who Visited", whoVisited));
         }
 
         /// <summary>
@@ -621,7 +704,7 @@ namespace WinFormsApp1.Classes
         /// </summary>
         /// <param name="list"></param>
         /// <returns></returns>
-        public bool IsEmpty(List<string> list)
+        public static bool IsEmpty(List<string> list)
         {
             if (list.Count <= 0)
             {
@@ -676,10 +759,13 @@ namespace WinFormsApp1.Classes
             {
                 await SaveData();
             }
-            if (WebServer.State == NHttp.HttpServerState.Started || WebServer.State == HttpServerState.Starting)
+            if (WebServer != null)
             {
-                WebServer.Stop();
-                WebServer.Dispose();
+                if (WebServer.State == NHttp.HttpServerState.Started || WebServer.State == HttpServerState.Starting)
+                {
+                    WebServer.Stop();
+                    WebServer.Dispose();
+                }
             }
         }
 
@@ -733,7 +819,6 @@ namespace WinFormsApp1.Classes
         {
             public string Client_ID { get; set; }
             public string Client_Secret { get; set; }
-            public string Channel_Name { get; set; }
 
             public string Refresh_Token { get; set; }
             public string Access_Token { get; set; }
