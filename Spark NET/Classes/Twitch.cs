@@ -7,7 +7,6 @@ using TwitchLib.Client.Models;
 using TwitchLib.Client;
 using WinFormsApp1;
 using WinFormsApp1.Designs;
-using WinFormsApp1.Designs;
 using System.Reflection.Metadata;
 using TwitchLib.Api;
 using TwitchLib.Api.Auth;
@@ -27,10 +26,11 @@ using TwitchLib.Api.ThirdParty.AuthorizationFlow;
 using TwitchLib.Client.Events;
 using TwitchLib.Api.Helix.Models.Moderation.BanUser;
 using TwitchLib.Api.Core.HttpCallHandlers;
+using WinFormsApp1.Classes;
 
+// Add EventSub Support
 // Fix Commands not working
 // Add support for Connecting to Non-Broadcaster Channels
-// Optimize and Refine everything, maybe implement Threading
 // Add support for Same-Date Twitch Logs
 // Add more Twitch Logging (Chat Commands, Unbans, Channel Points, Followers, Subs, Title Changes, Category Changes)
 // Add Channel Bot Support?
@@ -74,6 +74,7 @@ namespace WinFormsApp1.Classes
         List<string> viewerLogs = new List<string>();
 
         List<string> whoVisited = new List<string>();
+        List<string> excludedUsers = new List<string>(); // Users that are excluded from the viewer logs.
 
         List<Tuple<string, List<string>>> logList = new List<Tuple<string, List<string>>>();
 
@@ -95,6 +96,7 @@ namespace WinFormsApp1.Classes
             if (twitchClient.IsConnected)
             {
                 var Clip = API.Helix.Clips.CreateClipAsync(GetBroadcasterID(), accessToken);
+                PlaySound("ClipCreated.mp3");
                 Log("Clip Created!");
             }
             else
@@ -276,7 +278,7 @@ namespace WinFormsApp1.Classes
         public void BanRecentUser()
         {
             BanUser(RecentUser, -1, "Banned by SPARK");
-            PlaySound("BannedRecentUser.mp3");
+            PlaySound("BannedRecentUser.wav");
         }
 
 
@@ -407,6 +409,37 @@ namespace WinFormsApp1.Classes
             }
         }
 
+        public void ResetLogs()
+        {
+            if (twitchLogs.Count >= 1)
+            {
+                twitchLogs.Clear();
+                messageLogs.Clear();
+                moderationLogs.Clear();
+                channelPointLogs.Clear();
+                viewerLogs.Clear();
+                streamLogs.Clear();
+                whoVisited.Clear();
+                Log("Twitch Logs Cleared!");
+            }
+            else
+            {
+                Log("No Twitch Logs To Clear!");
+            }
+        }
+
+        public void ExcludeUser(string User)
+        {
+            if (!excludedUsers.Contains(User))
+            {
+                excludedUsers.Add(User);
+            }
+            else
+            {
+                Log("User has already been excluded!");
+            }
+        }
+
 
 
         #endregion
@@ -469,14 +502,14 @@ namespace WinFormsApp1.Classes
             string raider = e.RaidNotification.DisplayName;
             string viewerCount = e.RaidNotification.MsgParamViewerCount;
             Log(raider + " is raiding with " + viewerCount + " viewers!");
-            StoreLog(streamLogs, " " + Spark.GetCurrentTime() + "  -  " + raider + " is raiding with " + viewerCount + " viewers!");
+            StoreLog(streamLogs, " " + Spark.CurrentTime() + "  -  " + raider + " is raiding with " + viewerCount + " viewers!");
         }
 
         private void ViewerLeft(object? sender, TwitchLib.Client.Events.OnUserLeftArgs e)
         {
             currentViewers = -1;
             string Viewer = e.Username;
-            StoreLog(viewerLogs, " " + Spark.GetCurrentTime() + "  -  " + Viewer + " has left the stream!");
+            StoreLog(viewerLogs, " " + Spark.CurrentTime() + "  -  " + Viewer + " has left the stream!");
             Log("Viewer Left: " + Viewer);
         }
 
@@ -507,7 +540,7 @@ namespace WinFormsApp1.Classes
             {
                 Spark.Log(Message.DisplayName + ": " + Message.Message, Color.MediumPurple);
             }
-            string String = " " + Spark.GetCurrentTime() + "  -  " + Message.DisplayName + ": " + Message.Message;
+            string String = " " + Spark.CurrentTime() + "  -  " + Message.DisplayName + ": " + Message.Message;
             StoreLog(messageLogs, String);
         }
 
@@ -515,7 +548,7 @@ namespace WinFormsApp1.Classes
         {
             string viewer = e.UserBan.Username;
             string banReason = e.UserBan.BanReason;
-            StoreLog(moderationLogs, " " + Spark.GetCurrentTime() + "  -  " + viewer + " has been banned for " + banReason);
+            StoreLog(moderationLogs, " " + Spark.CurrentTime() + "  -  " + viewer + " has been banned for " + banReason);
             Log("User Banned: " + viewer);
         }
 
@@ -555,11 +588,12 @@ namespace WinFormsApp1.Classes
         /// <param name="Viewer"></param>
         private void StoreViewer(string Viewer)
         {
-            if (!viewerLogs.Contains(Viewer))
+            EnsureLimit(viewerLogs, 5000, true);
+            StoreLog(viewerLogs, " " + Spark.CurrentTime() + "  -  " + Viewer + " has joined the stream!");
+
+            if (!whoVisited.Contains(Viewer) && !excludedUsers.Contains(Viewer))
             {
-                EnsureLimit(viewerLogs, 5000, true);
                 whoVisited.Add(Viewer);
-                StoreLog(viewerLogs, " " + Spark.GetCurrentTime() + "  -  " + Viewer + " has joined the stream!");
             }
         }
 
@@ -772,7 +806,25 @@ namespace WinFormsApp1.Classes
 
         private void BuildLibrary()
         {
+            #region ChatCommands
             AddCommand("!say", "say");
+            #endregion
+
+            #region ExcludedUsers
+            ExcludeUser("SPARK_NET_BOT");
+            ExcludeUser("SPARK_NET");
+            ExcludeUser("SPARK_NET_DEV");
+            ExcludeUser("SPARK_NET_TEST");
+
+            ExcludeUser("FumetsuTheBot");
+            ExcludeUser("streamelements");
+            ExcludeUser("Streamlabs");
+            ExcludeUser("StreamElements");
+            ExcludeUser("Nightbot");
+            ExcludeUser("Moobot");
+            ExcludeUser("SullyGnome");
+            ExcludeUser("SullyGnomeBot");
+            #endregion
         }
 
 

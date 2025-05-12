@@ -22,17 +22,19 @@ using System.Drawing;
 using System.Text.Json;
 using static System.Formats.Asn1.AsnWriter;
 using Spark_NET.Classes;
-using NAudio.Wave;
+using NAudio.Vorbis;
 
 
 // Add Global Keybind Support
+// Optimize and Refine everything, maybe implement Threading
+// Add Emotion Support
 // Add OBS Connection
 
 namespace WinFormsApp1.Classes
 {
     public class Spark
     {
-        public bool twitchConnection = false;
+        public bool twitchConnection = true;
         public bool enableRecognition = true;
         public bool obsConnection = false;
         public bool commandConnection = true;
@@ -45,6 +47,8 @@ namespace WinFormsApp1.Classes
         public bool powered = false;
         bool noActions = true;
         public bool sparkPowered = false;
+
+        public bool exiting = false;
 
         public bool enableLogging = true;
         public bool resetLogs = false;
@@ -110,6 +114,16 @@ namespace WinFormsApp1.Classes
                             mp3reader.Dispose();
                         };
                         break;
+                    case ".ogg":
+                        var oggreader = new VorbisWaveReader(Path.Combine(soundPath, Sound));
+                        waveOut.Init(oggreader);
+                        waveOut.Play();
+                        waveOut.PlaybackStopped += (s, e) =>
+                        {
+                            waveOut.Dispose();
+                            oggreader.Dispose();
+                        };
+                        break;
                     default:
                         Warn("Tried to play unsupported sound type: " + extensionType);
                         break;
@@ -121,7 +135,7 @@ namespace WinFormsApp1.Classes
             }
         }
 
-        public string GetCurrentTime()
+        public string CurrentTime()
         {
             DateTime now = DateTime.Now;
             string time = now.ToString("HH:mm:ss");
@@ -130,8 +144,9 @@ namespace WinFormsApp1.Classes
 
         public async Task HandleExit()
         {
+            exiting = true;
             Shutdown();
-            MainForm.ConsoleBox.Enabled = false;
+            MainForm.CommandBar.ReadOnly = true;
             MainForm.PowerButton.Enabled = false;
             MainForm.ClearButton.Enabled = false;
             await Twitch.AppClosing();
@@ -206,8 +221,6 @@ namespace WinFormsApp1.Classes
             await CreatePath(Path.Combine(dataPath, "Logs"));
             await CreatePath(twitchPath);
             await CreatePath(Path.Combine(twitchPath, "Twitch Logs"));
-            await CreatePath(binData);
-            await CreateFile(Path.Combine(binData, "Client.json"));
             await CreatePath(soundsPath);
             await CreatePath(Path.Combine(soundsPath, "Twitch"));
 
@@ -228,6 +241,7 @@ namespace WinFormsApp1.Classes
 
             AddChoice(osName + "ban that guy", "twitch_ban_recent");
             AddChoice(osName + "clip that", "clip_that");
+            AddChoice(osName + "release the monkeys", "release_monkeys");
 
             #endregion
 
@@ -262,6 +276,14 @@ namespace WinFormsApp1.Classes
             AddCommand("Parameter");
 
             AddCommand("Command");
+            #endregion
+
+            #region AntiMixup
+            AddMixup("Clip That");
+            AddMixup("Ban That Guy");
+            AddMixup("Mods Ban That Guy");
+            AddMixup("Jarvis Clip That");
+            AddMixup("Jarvis Ban That Guy");
             #endregion
         }
 
@@ -334,6 +356,16 @@ namespace WinFormsApp1.Classes
             Phrase = Phrase.ToLower();
             responses.TryAdd(Phrase, Response);
             AddChoice(Phrase, "respond");
+        }
+
+        private void AddMixup(string Phrase)
+        {
+            Phrase = Phrase.ToLower();
+            if (!Classes.Recognition.antiMixups.Contains(Phrase) && !Classes.Recognition.phrases.ContainsKey(Phrase))
+            {
+                Classes.Recognition.antiMixups.Add(Phrase);
+                Classes.Recognition.choices.Add(Phrase);
+            }
         }
 
         private void AddChoice(string Phrase, string ActionID = "%null%")
@@ -410,7 +442,7 @@ namespace WinFormsApp1.Classes
 
         public void SparkStarted()
         {
-            Log("Spark has been started!", utilColor);
+            Log(Classes.Emotion.FormulateSentence("Spark has been started!"), utilColor);
 
             Classes.Recognition.recognitionLoaded = true;
             sparkPowered = true;
@@ -437,7 +469,7 @@ namespace WinFormsApp1.Classes
                     {
                         ClearLog();
                     }
-                    Recognition.Load();
+                    Classes.Recognition.Load();
                 }
             }
             else
@@ -507,9 +539,10 @@ namespace WinFormsApp1.Classes
 
     public class Classes
     {
-        public static MainForm MainForm = new MainForm();
+        public static MainForm MainForm = (MainForm)System.Windows.Forms.Application.OpenForms["MainForm"];
         public static Spark Spark = new Spark();
         public static Recognition Recognition = new Recognition();
+        public static Emotion Emotion = new Emotion();
         public static Twitch Twitch = new Twitch();
         public static Command Command = new Command();
         public static OBS OBS = new OBS();

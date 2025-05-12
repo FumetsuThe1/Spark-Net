@@ -64,10 +64,10 @@ namespace WinFormsApp1.Classes
 
         private void ConsoleBar_KeyPress(object? sender, KeyPressEventArgs e)
         {
-            if (e.KeyChar == (char)Keys.Enter)
+            if (e.KeyChar == (char)Keys.Enter && !Spark.exiting)
             {
-                string command = MainForm.ConsoleBox.Text;
-                MainForm.ConsoleBox.Clear();
+                string command = MainForm.CommandBar.Text;
+                MainForm.CommandBar.Clear();
                 RunCommand("say ah booga");
             }
         }

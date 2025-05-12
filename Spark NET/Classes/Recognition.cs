@@ -17,7 +17,7 @@ namespace WinFormsApp1.Classes
     public class Recognition
     {
         public const string recognitionModel = "Windows"; // Vosk, Windows, Vosk Backing
-        public const double sensitivity = 60;
+        public const double sensitivity = 70;
 
         const string smallModel = @"E:\Files\AI Models\vosk-model-small-en-us-0.15\vosk-model-small-en-us-0.15";
         const string largeModel = @"E:\Files\AI Models\vosk-model-en-us-0.22\vosk-model-en-us-0.22";
@@ -43,6 +43,8 @@ namespace WinFormsApp1.Classes
         public Dictionary<string, string> phrases = new Dictionary<string, string>();
         public Dictionary<string, string> synonymPhrases = new Dictionary<string, string>();
         public Dictionary<string, Tuple<string, List<string>>> synonymWords = new Dictionary<string, Tuple<string, List<string>>>();
+
+        public List<string> antiMixups = new List<string>();
 
 
 
@@ -129,16 +131,19 @@ namespace WinFormsApp1.Classes
                 }
             }
 
-            Classes.Spark.DebugLog(Phrase);
-            Classes.Spark.Respond(Phrase);
-
-            if (Classes.Spark.responses.ContainsKey(Phrase))
+            if (!antiMixups.Contains(Phrase))
             {
-                Classes.Spark.responses.TryGetValue(Phrase, out string? value);
-                Classes.Spark.Respond("CONTAINS KEYYY");
-            }
+                Classes.Spark.DebugLog(Phrase);
+                Classes.Spark.Respond(Phrase);
 
-            RunAction(ActionID, WinResult, VoskResult);
+                if (Classes.Spark.responses.ContainsKey(Phrase))
+                {
+                    Classes.Spark.responses.TryGetValue(Phrase, out string? value);
+                    Classes.Spark.Respond("CONTAINS KEYYY");
+                }
+
+                RunAction(ActionID, WinResult, VoskResult);
+            }
         }
 
         public void Load(bool forceLoad = false)
@@ -154,7 +159,7 @@ namespace WinFormsApp1.Classes
                         {
                             string fileName = "TestRecording_Vosk.wav";
                             Classes.Spark.DebugLog("Vosk Speech Recognition Activated!");
-                            WaveFormat waveFormat = new WaveFormat(44100, 1);
+                            WaveFormat waveFormat = new WaveFormat(48000, 1);
                             WaveFileWriter waveFileWriter = new WaveFileWriter(fileName, waveFormat);
 
                             void AudioDetected(object? sender, WaveInEventArgs e)

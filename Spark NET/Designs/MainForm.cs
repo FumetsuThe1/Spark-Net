@@ -58,13 +58,26 @@ namespace WinFormsApp1.Designs
             }
         }
 
-        private void ConsoleBar_KeyPress(object sender, KeyPressEventArgs e)
+        private void CommandBar_KeyPress(object sender, KeyPressEventArgs e)
         {
             if (e.KeyChar == (char)Keys.Enter)
             {
-                string input = ConsoleBar.Text;
-                ConsoleBar.Clear();
+                string input = CommandBar.Text;
+                CommandBar.Clear();
                 Classes.Spark.SendCommand(input);
+            }
+        }
+
+        private void CommandBar_Enter(object sender, EventArgs e)
+        {
+            CommandBar.Clear();
+        }
+
+        private void CommandBar_Leave(object sender, EventArgs e)
+        {
+            if (CommandBar.Text == "" || CommandBar.Text == " ")
+            {
+                CommandBar.Text = "Enter Command";
             }
         }
     }
