@@ -152,7 +152,6 @@ namespace WinFormsApp1.Classes
             {
                 encrypted += (char)(c + 2);
             }
-            DebugLog(encrypted);
             return encrypted;
         }
 
@@ -166,7 +165,6 @@ namespace WinFormsApp1.Classes
             {
                 decrypted += (char)(c - 2);
             }
-            DebugLog(decrypted);
             return decrypted;
         }
 
