@@ -684,8 +684,8 @@ namespace WinFormsApp1.Classes
                     Client_ID = clientID,
                     Client_Secret = clientSecret,
 
-                    Refresh_Token = refreshToken,
-                    Access_Token = accessToken,
+                    Refresh_Token = Spark.Encrypt(refreshToken),
+                    Access_Token = Spark.Encrypt(accessToken),
                     Scopes = scopes
                 }
             };
@@ -855,8 +855,8 @@ namespace WinFormsApp1.Classes
                 var Json = JsonSerializer.Deserialize<ClientData[]>(clientJson);
 
                 oldScopes = Json[0].Scopes;
-                accessToken = Json[0].Access_Token;
-                refreshToken = Json[0].Refresh_Token;
+                accessToken = Spark.Decrypt(Json[0].Access_Token); 
+                refreshToken = Spark.Decrypt(Json[0].Refresh_Token); 
                 clientID = Json[0].Client_ID;
                 clientSecret = Json[0].Client_Secret;
             }

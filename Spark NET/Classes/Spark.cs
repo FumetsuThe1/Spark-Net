@@ -142,6 +142,34 @@ namespace WinFormsApp1.Classes
             return time;
         }
 
+        public string Encrypt(string text)
+        {
+            string encrypted = "";
+            string firstHalf = text.Substring(0, text.Length / 2);
+            string secondHalf = text.Substring((text.Length / 2) - 3);
+            string lastLetters = text.Substring(text.Length - 3);
+            foreach (char c in text)
+            {
+                encrypted += (char)(c + 2);
+            }
+            DebugLog(encrypted);
+            return encrypted;
+        }
+
+        public string Decrypt(string text)
+        {
+            string decrypted = "";
+            string firstHalf = text.Substring(0, text.Length / 2);
+            string secondHalf = text.Substring((text.Length / 2) - 3);
+            string lastLetters = text.Substring(text.Length - 3);
+            foreach (char c in text)
+            {
+                decrypted += (char)(c - 2);
+            }
+            DebugLog(decrypted);
+            return decrypted;
+        }
+
         public async Task HandleExit()
         {
             exiting = true;
@@ -408,6 +436,7 @@ namespace WinFormsApp1.Classes
             MainForm.ConsoleBox.AppendText(NoActionString, defaultColor);
             MainForm.ConsoleBox.AppendText(Environment.NewLine, Color.White);
             noActions = true;
+            Decrypt(Encrypt("Hello, it is a good day to test encryption today!"));
         }
 
         public void ClearLog()
