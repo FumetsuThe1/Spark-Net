@@ -3,8 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using TwitchLib.Client.Models;
 using TwitchLib.Client;
+using TwitchLib.Client.Extensions;
 using WinFormsApp1;
 using WinFormsApp1.Designs;
 using System.Reflection.Metadata;
@@ -16,26 +16,30 @@ using static System.Net.WebRequestMethods;
 using Microsoft.Win32;
 using System.Net.Http.Json;
 using NHttp;
-using TwitchLib.Client.Extensions;
-using TwitchLib.PubSub.Models.Responses.Messages.AutomodCaughtMessage;
 using System.Text.Json.Serialization;
 using NAudio.CoreAudioApi;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using TwitchLib.Api.ThirdParty.AuthorizationFlow;
-using TwitchLib.Client.Events;
 using TwitchLib.Api.Helix.Models.Moderation.BanUser;
 using TwitchLib.Api.Core.HttpCallHandlers;
 using WinFormsApp1.Classes;
+using TwitchLib.EventSub.Websockets;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using TwitchLib.EventSub.Websockets.Core.EventArgs.Channel;
-using TwitchLib.EventSub.Websockets.Core.EventArgs;
-using TwitchLib.EventSub.Websockets;
-using TwitchLib.EventSub.Websockets.Extensions;
 using Microsoft.Extensions.DependencyInjection;
 using TwitchLib.Api.Core.Enums;
 using TwitchLib.Api.Interfaces;
+using TwitchLib.EventSub.Websockets.Core.EventArgs;
+using TwitchLib.EventSub.Websockets.Core.EventArgs.Channel;
+using TwitchLib.Client.Models;
+using TwitchLib.EventSub.Websockets.Extensions;
+using TwitchLib.EventSub.Core.Models.ChannelPoints;
+using TwitchLib.EventSub.Core.SubscriptionTypes.Channel;
+using TwitchLib.Client.Events;
+using TwitchLib.EventSub.Core.Models.Chat;
+using OBSWebsocketDotNet.Types;
+using System.Text.RegularExpressions;
 
 // Add EventSub Support
 // Fix Commands not working
@@ -58,7 +62,7 @@ namespace WinFormsApp1.Classes
 
         string DirectURL = "http://localhost:3000";
 
-        string scopes = "clips:edit moderator:manage:banned_users moderator:read:banned_users user:bot moderator:read:chatters moderator:read:followers moderator:read:moderators moderation:read channel:moderate channel:bot chat:read chat:edit bits:read channel:read:redemptions channel:read:ads channel:read:editors user:write:chat";
+        string scopes = "user:read:chat user:bot moderator:manage:shoutouts moderator:read:shoutouts moderator:read:followers channel:manage:raids user:read:chat user:bot channel:bot user:read:chat user:write:chat chat:read chat:edit channel:manage:redemptions channel:read:redemptions channel:manage:raids channel:read:subscriptions channel:read:vips channel:manage:vips moderation:read moderator:read:banned_users moderator:manage:banned_users moderator:read:blocked_terms moderator:read:chat_messages moderator:manage:chat_messages moderator:read:chat_settings moderator:read:chatters moderator:read:followers moderator:read:moderators moderator:read:shoutouts moderator:manage:shoutouts moderator:read:vips user:bot user:read:broadcast user:read:follows user:read:subscriptions user:read:subscriptions user:manage:chat_color moderator:manage:shoutouts moderator:read:shoutouts moderator:read:moderators moderator:read:chatters moderator:read:followers moderator:manage:chat_messages moderator:read:chat_messages moderator:manage:banned_users moderation:read channel:read:subscriptions channel:read:redemptions bits:read clips:edit moderator:manage:banned_users moderator:read:banned_users user:bot moderator:read:chatters moderator:read:followers moderator:read:moderators moderation:read channel:moderate channel:bot chat:read chat:edit bits:read channel:read:redemptions channel:read:ads channel:read:editors user:write:chat";
 
 
         string channelName = "%null%";
@@ -71,10 +75,11 @@ namespace WinFormsApp1.Classes
         string accessToken = "%null%";
         string refreshToken = "%null%";
 
+        bool disposeTokens = false;
+
         MainForm MainForm = (MainForm)System.Windows.Forms.Application.OpenForms["MainForm"];
         NHttp.HttpServer WebServer;
         Spark Spark = Classes.Spark;
-
 
         static string twitchPath = Path.Combine(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), Classes.Spark.dataPath), "Twitch");
         public string clientDataPath = Path.Combine(twitchPath, "Client.json");
@@ -104,6 +109,11 @@ namespace WinFormsApp1.Classes
 
 
         #region Methods
+
+        public void Shoutout()
+        {
+            API.Helix.Chat.SendShoutoutAsync(GetBroadcasterID(), "fumetsuthealt", accessToken);
+        }
 
         public void CreateClip()
         {
@@ -384,6 +394,7 @@ namespace WinFormsApp1.Classes
                                 await ConnectClient();
                                 WebServer.Stop();
                                 WebServer.Dispose();
+                                await _host.StartAsync();
                             }
                         }
                     };
@@ -418,6 +429,7 @@ namespace WinFormsApp1.Classes
                     else
                     {
                         await ConnectClient();
+                        await _host.StartAsync();
                     }
                 }
             }
@@ -517,6 +529,7 @@ namespace WinFormsApp1.Classes
             string viewerCount = e.RaidNotification.MsgParamViewerCount;
             Log(raider + " is raiding with " + viewerCount + " viewers!");
             StoreLog(streamLogs, " " + Spark.CurrentTime() + "  -  " + raider + " is raiding with " + viewerCount + " viewers!");
+            SendMessage($"{raider} is raiding with {viewerCount} viewers!");
         }
 
         private void ViewerLeft(object? sender, TwitchLib.Client.Events.OnUserLeftArgs e)
@@ -587,12 +600,11 @@ namespace WinFormsApp1.Classes
 
         private void ConnectEvents()
         {
-            twitchClient.OnUserBanned += UserBanned;
             twitchClient.OnRaidNotification += RaidDetected;
+            twitchClient.OnUserBanned += UserBanned;
             twitchClient.OnJoinedChannel += JoinedChannel;
             twitchClient.OnUserJoined += ViewerJoined;
             twitchClient.OnUserLeft += ViewerLeft;
-            twitchClient.OnMessageReceived += MessageReceived;
             twitchClient.OnUserTimedout += UserTimedOut;
         }
 
@@ -691,15 +703,25 @@ namespace WinFormsApp1.Classes
         {
             LoadLogList();
 
-            var data = new List<ClientData>
+
+            string _accessToken = "%null%";
+            string _refreshToken = "%null%";
+
+            if (!disposeTokens)
+            {
+                _accessToken = accessToken;
+                _refreshToken = refreshToken;
+            }
+
+                var data = new List<ClientData>
             {
                 new ClientData
                 {
                     Client_ID = clientID,
                     Client_Secret = clientSecret,
 
-                    Refresh_Token = Spark.Encrypt(refreshToken),
-                    Access_Token = Spark.Encrypt(accessToken),
+                    Refresh_Token = Spark.Encrypt(_refreshToken),
+                    Access_Token = Spark.Encrypt(_accessToken),
                     Scopes = scopes
                 }
             };
@@ -799,7 +821,15 @@ namespace WinFormsApp1.Classes
             }
         }
 
-
+        private string ValidateScopes()
+        {
+            string[] words = scopes.Split(' ');
+            string[] distinctWords = words.Distinct().ToArray();
+            Array.Sort(distinctWords);
+            string output = string.Join(" ", distinctWords);
+            Spark.DebugLog(output);
+            return output;
+        }
 
         public async Task AppClosing()
         {
@@ -858,10 +888,10 @@ namespace WinFormsApp1.Classes
 
         public async Task AppLoad()
         {
+            ValidateScopes();
             BuildLibrary();
             await LoadData();
             await LoadConnection();
-            await _host.StartAsync();
         }
 
 
@@ -901,9 +931,64 @@ namespace WinFormsApp1.Classes
         {
             private readonly ILogger<WebsocketHostedService> _logger;
             private readonly EventSubWebsocketClient _eventSubWebsocketClient;
-            private readonly TwitchAPI _twitchAPI = new();
-            private string _userId = "fumetsuthe1";
+            private readonly TwitchAPI _twitchAPI = Classes.Twitch.API;
+            private string _userId;
 
+            Twitch Twitch = Classes.Twitch;
+            Spark Spark = Classes.Spark;
+
+
+            #region Events
+            private async Task ChannelPointRedemption(object? sender, ChannelPointsCustomRewardRedemptionArgs e)
+            {
+                var eventData = e.Notification.Payload.Event;
+                var reward = eventData.Reward.Title;
+                string user = eventData.UserName;
+                Twitch.Log($"{user} Redeemed {reward} for {eventData.Reward.Cost} Poinks!");
+                Twitch.SendMessage(user + " Redeemed " + reward + " for " + eventData.Reward.Cost + " Poinks!");
+            }
+
+            private async Task OnChannelRaid(object? sender, ChannelRaidArgs e)
+            {
+                var eventData = e.Notification.Payload.Event;
+                var raider = eventData.FromBroadcasterUserName;
+                var viewers = eventData.Viewers;
+                Twitch.Log($"{raider} is raiding with {viewers} viewers!");
+                _logger.LogInformation($"{raider} is raiding with {viewers} viewers!");
+            }
+
+            private async Task OnChannelFollow(object? sender, ChannelFollowArgs e)
+            {
+                var eventData = e.Notification.Payload.Event;
+                Twitch.Log(eventData.UserName + " followed " + eventData.BroadcasterUserName);
+                _logger.LogInformation($"{eventData.UserName} followed {eventData.BroadcasterUserName} at {eventData.FollowedAt}");
+            }
+
+            private async Task MessageReceived(object? sender, ChannelChatMessageArgs e)
+            {
+                var eventData = e.Notification.Payload.Event;
+                Spark.Log(eventData.ChatterUserName + ": " + eventData.Message.Text, Color.MediumPurple);
+                _logger.LogInformation($"{eventData.ChatterUserName} sent a message: {eventData.Message.Text}");
+            }
+
+            private async Task BitsCheered(object? sender, ChannelCheerArgs e)
+            {
+                var eventData = e.Notification.Payload.Event;
+                Twitch.Log(eventData.UserName + " has cheered " + eventData.Bits + " bits!");
+                _logger.LogInformation($"{eventData.UserName} cheered {eventData.Bits} bits!");
+            }
+
+            private async Task ShoutoutGiven(object? sender, ChannelShoutoutCreateArgs e)
+            {
+                var eventData = e.Notification.Payload.Event;
+                Twitch.Log($"Make sure to checkout {eventData.ToBroadcasterUserName}, they're pretty cool!");
+                _logger.LogInformation($"{eventData.BroadcasterUserName} gave a shoutout to {eventData.ToBroadcasterUserName}");
+            }
+
+            #endregion
+
+
+            // Add Event Connections Here!
             public eWebsocketHostedService(ILogger<WebsocketHostedService> logger, EventSubWebsocketClient eventSubWebsocketClient)
             {
                 _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -914,11 +999,56 @@ namespace WinFormsApp1.Classes
                 _eventSubWebsocketClient.WebsocketReconnected += OnWebsocketReconnected;
                 _eventSubWebsocketClient.ErrorOccurred += OnErrorOccurred;
 
+                _eventSubWebsocketClient.ChannelChatMessage += MessageReceived;
                 _eventSubWebsocketClient.ChannelFollow += OnChannelFollow;
+                _eventSubWebsocketClient.ChannelRaid += OnChannelRaid;
+                _eventSubWebsocketClient.ChannelPointsCustomRewardRedemptionAdd += ChannelPointRedemption;
+                _eventSubWebsocketClient.ChannelCheer += BitsCheered;
+                _eventSubWebsocketClient.ChannelShoutoutCreate += ShoutoutGiven;
 
-                _twitchAPI.Settings.ClientId = Classes.Twitch.clientID;
-                _twitchAPI.Settings.AccessToken = Classes.Twitch.accessToken;
+                _userId = _twitchAPI.Helix.Users.GetUsersAsync().Result.Users[0].Id;
             }
+
+
+            // Add Eventsub Subscriptions Here!
+            private async Task OnWebsocketConnected(object? sender, WebsocketConnectedArgs e)
+            {
+                _logger.LogInformation($"Websocket {_eventSubWebsocketClient.SessionId} connected!");
+                Twitch.Log("Websocket Connected!");
+
+                if (!e.IsRequestedReconnect)
+                {
+                    var condition = new Dictionary<string, string> { { "broadcaster_user_id", _userId }, { "moderator_user_id", _userId } };
+                    var messageCondition = new Dictionary<string, string> { { "broadcaster_user_id", _userId }, { "user_id", _userId } };
+                    var raidCondition = new Dictionary<string, string> { { "to_broadcaster_user_id", _userId } };
+
+                    #region Subscriptions
+
+                    await _twitchAPI.Helix.EventSub.CreateEventSubSubscriptionAsync("channel.follow", "2", condition, EventSubTransportMethod.Websocket,
+                        _eventSubWebsocketClient.SessionId, accessToken: Classes.Twitch.accessToken);
+                    await _twitchAPI.Helix.EventSub.CreateEventSubSubscriptionAsync("channel.channel_points_custom_reward_redemption.add", "1", condition, EventSubTransportMethod.Websocket,
+                        _eventSubWebsocketClient.SessionId, accessToken: Classes.Twitch.accessToken);
+                    await _twitchAPI.Helix.EventSub.CreateEventSubSubscriptionAsync("channel.cheer", "1", condition, EventSubTransportMethod.Websocket,
+                        _eventSubWebsocketClient.SessionId, accessToken: Classes.Twitch.accessToken);
+                    await _twitchAPI.Helix.EventSub.CreateEventSubSubscriptionAsync("channel.shoutout.create", "1", condition, EventSubTransportMethod.Websocket,
+                        _eventSubWebsocketClient.SessionId, accessToken: Classes.Twitch.accessToken);
+                    await _twitchAPI.Helix.EventSub.CreateEventSubSubscriptionAsync("channel.shoutout.receive", "1", condition, EventSubTransportMethod.Websocket,
+                        _eventSubWebsocketClient.SessionId, accessToken: Classes.Twitch.accessToken);
+                    await _twitchAPI.Helix.EventSub.CreateEventSubSubscriptionAsync("stream.online", "1", condition, EventSubTransportMethod.Websocket,
+                        _eventSubWebsocketClient.SessionId, accessToken: Classes.Twitch.accessToken);
+                    await _twitchAPI.Helix.EventSub.CreateEventSubSubscriptionAsync("stream.offline", "1", condition, EventSubTransportMethod.Websocket,
+                        _eventSubWebsocketClient.SessionId, accessToken: Classes.Twitch.accessToken);
+                    await _twitchAPI.Helix.EventSub.CreateEventSubSubscriptionAsync("channel.chat.message", "1", messageCondition, EventSubTransportMethod.Websocket,
+                        _eventSubWebsocketClient.SessionId, accessToken: Classes.Twitch.accessToken);
+                    await _twitchAPI.Helix.EventSub.CreateEventSubSubscriptionAsync("channel.raid", "1", raidCondition, EventSubTransportMethod.Websocket,
+                        _eventSubWebsocketClient.SessionId, accessToken: Classes.Twitch.accessToken);
+                    #endregion
+                }
+            }
+
+
+
+
 
             public async Task StartAsync(CancellationToken cancellationToken)
             {
@@ -930,21 +1060,8 @@ namespace WinFormsApp1.Classes
                 await _eventSubWebsocketClient.DisconnectAsync();
             }
 
-            private async void OnWebsocketConnected(object? sender, WebsocketConnectedArgs e)
-            {
-                _logger.LogInformation($"Websocket {_eventSubWebsocketClient.SessionId} connected!");
-                Classes.Twitch.Log("Websocket Connected!");
 
-                if (!e.IsRequestedReconnect)
-                {
-                    var condition = new Dictionary<string, string> { { "broadcaster_user_id", _userId }, { "moderator_user_id", _userId } };
-                    // Create and send EventSubscription
-                    await _twitchAPI.Helix.EventSub.CreateEventSubSubscriptionAsync("channel.follow", "2", condition, EventSubTransportMethod.Websocket,
-                        _eventSubWebsocketClient.SessionId, accessToken: "BROADCASTER_ACCESS_TOKEN_WITH_SCOPES");
-                }
-            }
-
-            private async void OnWebsocketDisconnected(object? sender, EventArgs e)
+            private async Task OnWebsocketDisconnected(object? sender, EventArgs e)
             {
                 _logger.LogError($"Websocket {_eventSubWebsocketClient.SessionId} disconnected!");
                 Classes.Twitch.Log("Websocket Disconnected!");
@@ -957,21 +1074,14 @@ namespace WinFormsApp1.Classes
                 }
             }
 
-            private void OnWebsocketReconnected(object? sender, EventArgs e)
+            private async Task OnWebsocketReconnected(object? sender, EventArgs e)
             {
                 _logger.LogWarning($"Websocket {_eventSubWebsocketClient.SessionId} reconnected");
             }
 
-            private void OnErrorOccurred(object? sender, ErrorOccuredArgs e)
+            private async Task OnErrorOccurred(object? sender, ErrorOccuredArgs e)
             {
                 _logger.LogError($"Websocket {_eventSubWebsocketClient.SessionId} - Error occurred!");
-            }
-
-            private void OnChannelFollow(object? sender, ChannelFollowArgs e)
-            {
-                var eventData = e.Notification.Payload.Event;
-                Classes.Twitch.Log(eventData.UserName + " followed " + eventData.BroadcasterUserName);
-                _logger.LogInformation($"{eventData.UserName} followed {eventData.BroadcasterUserName} at {eventData.FollowedAt}");
             }
         }
     }

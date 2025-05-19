@@ -144,33 +144,48 @@ namespace WinFormsApp1.Classes
 
         public string Encrypt(string text)
         {
-            string encrypted = "";
-            string firstHalf = text.Substring(0, text.Length / 2);
-            string secondHalf = text.Substring((text.Length / 2) - 3);
-            string lastLetters = text.Substring(text.Length - 3);
-            foreach (char c in text)
+            if (text == null || text == "%null%")
             {
-                encrypted += (char)(c + 2);
+                return "%null%";
             }
-            return encrypted;
+            else
+            {
+                string encrypted = "";
+                string firstHalf = text.Substring(0, text.Length / 2);
+                string secondHalf = text.Substring((text.Length / 2) - 3);
+                string lastLetters = text.Substring(text.Length - 3);
+                foreach (char c in text)
+                {
+                    encrypted += (char)(c + 2);
+                }
+                return encrypted;
+            }
         }
 
         public string Decrypt(string text)
         {
-            string decrypted = "";
-            string firstHalf = text.Substring(0, text.Length / 2);
-            string secondHalf = text.Substring((text.Length / 2) - 3);
-            string lastLetters = text.Substring(text.Length - 3);
-            foreach (char c in text)
+            if (text == null || text == "%null%")
             {
-                decrypted += (char)(c - 2);
+                return "%null%";
             }
-            return decrypted;
+            else
+            {
+                string decrypted = "";
+                string firstHalf = text.Substring(0, text.Length / 2);
+                string secondHalf = text.Substring((text.Length / 2) - 3);
+                string lastLetters = text.Substring(text.Length - 3);
+                foreach (char c in text)
+                {
+                    decrypted += (char)(c - 2);
+                }
+                return decrypted;
+            }
         }
 
         public async Task HandleExit()
         {
             exiting = true;
+            MainForm.Visible = false;
             Shutdown();
             MainForm.CommandBar.ReadOnly = true;
             MainForm.PowerButton.Enabled = false;

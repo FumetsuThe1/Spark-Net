@@ -70,7 +70,10 @@ namespace WinFormsApp1.Designs
 
         private void CommandBar_Enter(object sender, EventArgs e)
         {
-            CommandBar.Clear();
+            if (CommandBar.Text == "Enter Command" || CommandBar.Text == "" || CommandBar.Text == " ")
+            {
+                CommandBar.Clear();
+            }
         }
 
         private void CommandBar_Leave(object sender, EventArgs e)
