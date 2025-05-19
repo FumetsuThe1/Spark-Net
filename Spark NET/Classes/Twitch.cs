@@ -40,6 +40,7 @@ using TwitchLib.Client.Events;
 using TwitchLib.EventSub.Core.Models.Chat;
 using OBSWebsocketDotNet.Types;
 using System.Text.RegularExpressions;
+using Newtonsoft.Json.Linq;
 
 // Add EventSub Support
 // Fix Commands not working
@@ -110,7 +111,7 @@ namespace WinFormsApp1.Classes
 
         #region Methods
 
-        public void Shoutout()
+        public void Shoutout(string userId)
         {
             API.Helix.Chat.SendShoutoutAsync(GetBroadcasterID(), "fumetsuthealt", accessToken);
         }
@@ -844,6 +845,17 @@ namespace WinFormsApp1.Classes
                     WebServer.Stop();
                     WebServer.Dispose();
                 }
+            }
+            if (disposeTokens)
+            {
+                HttpClient client = new HttpClient();
+                Uri URL = new Uri(DirectURL);
+                await client.PostAsync("https://id.twitch.tv/oauth2/revoke", new FormUrlEncodedContent(new Dictionary<string, string>
+                {
+                    { "client_id", clientID },
+                    { "token", accessToken }
+                }));
+                client.Dispose();
             }
             using (_host)
             {
