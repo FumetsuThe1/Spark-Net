@@ -1,54 +1,28 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using TwitchLib.Client;
+﻿using TwitchLib.Client;
 using TwitchLib.Client.Extensions;
-using WinFormsApp1;
 using WinFormsApp1.Designs;
-using System.Reflection.Metadata;
 using TwitchLib.Api;
 using TwitchLib.Api.Auth;
 using System.Net;
 using System.Diagnostics;
-using static System.Net.WebRequestMethods;
-using Microsoft.Win32;
-using System.Net.Http.Json;
 using NHttp;
-using System.Text.Json.Serialization;
-using NAudio.CoreAudioApi;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using TwitchLib.Api.ThirdParty.AuthorizationFlow;
-using TwitchLib.Api.Helix.Models.Moderation.BanUser;
-using TwitchLib.Api.Core.HttpCallHandlers;
-using WinFormsApp1.Classes;
 using TwitchLib.EventSub.Websockets;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
 using TwitchLib.Api.Core.Enums;
-using TwitchLib.Api.Interfaces;
 using TwitchLib.EventSub.Websockets.Core.EventArgs;
 using TwitchLib.EventSub.Websockets.Core.EventArgs.Channel;
 using TwitchLib.Client.Models;
 using TwitchLib.EventSub.Websockets.Extensions;
-using TwitchLib.EventSub.Core.Models.ChannelPoints;
-using TwitchLib.EventSub.Core.SubscriptionTypes.Channel;
-using TwitchLib.Client.Events;
-using TwitchLib.EventSub.Core.Models.Chat;
-using OBSWebsocketDotNet.Types;
-using System.Text.RegularExpressions;
-using Newtonsoft.Json.Linq;
 
-// Add EventSub Support
-// Fix Commands not working
+// Add Chat Command Support
 // Add support for Connecting to Non-Broadcaster Channels
 // Add support for Same-Date Twitch Logs
 // Add more Twitch Logging (Chat Commands, Unbans, Channel Points, Followers, Subs, Title Changes, Category Changes)
 // Add Channel Bot Support?
-// Add support for disposing of Access Tokens
 
 namespace WinFormsApp1.Classes
 {

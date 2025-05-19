@@ -1,26 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Reflection;
-using System.Text;
-using System.Threading.Tasks;
-using WinFormsApp1.Designs;
+﻿using WinFormsApp1.Designs;
 using NAudio.Wave;
-using Vosk;
-using System.Speech.Recognition;
-using TwitchLib.Client;
 using System.Text.RegularExpressions;
 using System.Diagnostics;
-using TwitchLib.Client.Interfaces;
-using TwitchLib.Client.Models;
-using System.ComponentModel;
-using System.Runtime.CompilerServices;
-using System.Threading;
-using System.Security.Policy;
-using static System.Net.Mime.MediaTypeNames;
-using System.Drawing;
 using System.Text.Json;
-using static System.Formats.Asn1.AsnWriter;
 using Spark_NET.Classes;
 using NAudio.Vorbis;
 

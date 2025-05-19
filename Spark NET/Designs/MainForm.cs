@@ -1,21 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows.Forms;
-using WinFormsApp1.Classes;
-using WinFormsApp1.Designs;
+﻿using WinFormsApp1.Classes;
 
 namespace WinFormsApp1.Designs
 {
     public partial class MainForm : Form
     {
-        Classes Classes = new Classes();
-
         private bool Closing = false;
         public bool ExitComplete = false;
 

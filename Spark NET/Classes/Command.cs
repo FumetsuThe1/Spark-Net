@@ -1,11 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Xml.Linq;
-using Spark_NET.Classes;
-using WinFormsApp1.Designs;
+﻿using WinFormsApp1.Designs;
 
 namespace WinFormsApp1.Classes
 {
