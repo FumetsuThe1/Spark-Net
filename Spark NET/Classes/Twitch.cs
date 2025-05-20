@@ -56,8 +56,10 @@ namespace WinFormsApp1.Classes
         NHttp.HttpServer WebServer;
         Spark Spark = Classes.Spark;
 
-        static string twitchPath = Path.Combine(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), Classes.Spark.dataPath), "Twitch");
+        static public string twitchPath = Path.Combine(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), Classes.Spark.dataPath), "Twitch");
         public string clientDataPath = Path.Combine(twitchPath, "Client.json");
+        static public string twitchDataPath = Path.Combine(twitchPath, "Data");
+        public string tokenPath = Path.Combine(twitchDataPath, "Tokens.json");
         public string twitchLogsPath = Path.Combine(twitchPath, "Twitch Logs");
 
         List<string> streamLogs = new List<string>();
@@ -575,7 +577,6 @@ namespace WinFormsApp1.Classes
 
         private void ConnectEvents()
         {
-            twitchClient.OnRaidNotification += RaidDetected;
             twitchClient.OnUserBanned += UserBanned;
             twitchClient.OnJoinedChannel += JoinedChannel;
             twitchClient.OnUserJoined += ViewerJoined;
@@ -598,82 +599,6 @@ namespace WinFormsApp1.Classes
             }
         }
 
-
-        // Add Support for Same-Date Message Logs
-        private async Task OldSaveData(bool ForceSave = false)
-        {
-            var data = new List<ClientData>
-            {
-                new ClientData
-                {
-                    Client_ID = clientID,
-                    Client_Secret = clientSecret,
-
-                    Refresh_Token = refreshToken,
-                    Access_Token = accessToken,
-                    Scopes = scopes
-                }
-            };
-
-            var options = new JsonSerializerOptions
-            {
-                WriteIndented = true,
-            };
-
-            string jsonString = JsonSerializer.Serialize(data, options);
-
-            await using (StreamWriter swc = new StreamWriter(clientDataPath))
-            {
-                await swc.WriteLineAsync(jsonString);
-            }
-
-            int dataCount = messageLogs.Count + viewerLogs.Count + twitchLogs.Count + moderationLogs.Count + channelPointLogs.Count + streamLogs.Count;
-            if (ForceSave || dataCount > 0)
-            {
-                string logPath = twitchLogsPath + @"\" + DateTime.Now.Day + ";" + DateTime.Now.Month + ";" + DateTime.Now.Year;
-                await Spark.CreatePath(logPath);
-
-                if (!IsEmpty(twitchLogs) || ForceSave && twitchLogs.Count >= 1)
-                {
-                    viewerLogs.Sort();
-                    using var viewerfile = System.IO.File.OpenWrite(logPath + @"\Viewers.txt");
-                    await using (StreamWriter swv = new StreamWriter(viewerfile))
-                    {
-                        foreach (string Viewer in viewerLogs)
-                        {
-                            await swv.WriteLineAsync(Viewer);
-                        }
-                    }
-                }
-
-                if (viewerLogs.Count >= 1 || ForceSave && viewerLogs.Count >= 1)
-                {
-                    viewerLogs.Sort();
-                    using var viewerfile = System.IO.File.OpenWrite(logPath + @"\Viewers.txt");
-                    await using (StreamWriter swv = new StreamWriter(viewerfile))
-                    {
-                        foreach (string Viewer in viewerLogs)
-                        {
-                            await swv.WriteLineAsync(Viewer);
-                        }
-                    }
-                }
-
-                if (logMessages && messageLogs.Count >= 1 || ForceSave && messageLogs.Count >= 1)
-                {
-                    string FilePath = twitchLogsPath + @"\ChatLog   " + DateTime.Now.Day + ";" + DateTime.Now.Month + ";" + DateTime.Now.Year + ".txt";
-                    using var messagefile = System.IO.File.OpenWrite(logPath + @"\Messages.txt");
-                    await using (StreamWriter swm = new StreamWriter(messagefile))
-                    {
-                        foreach (string Message in messageLogs)
-                        {
-                            await swm.WriteLineAsync(Message);
-                        }
-                    }
-                }
-            }
-        }
-
         private async Task SaveData(bool ForceSave = false)
         {
             LoadLogList();
@@ -688,15 +613,23 @@ namespace WinFormsApp1.Classes
                 _refreshToken = refreshToken;
             }
 
-                var data = new List<ClientData>
-            {
+                var clientData = new List<ClientData>
+                {
                 new ClientData
                 {
                     Client_ID = clientID,
                     Client_Secret = clientSecret,
+                }
+            };
 
-                    Refresh_Token = Spark.Encrypt(_refreshToken),
-                    Access_Token = Spark.Encrypt(_accessToken),
+
+            var tokenData = new List<TokenData>
+                {
+                new TokenData
+                {
+                    Access_Token = Spark.Encrypt(accessToken),
+                    Refresh_Token = Spark.Encrypt(refreshToken),
+
                     Scopes = scopes
                 }
             };
@@ -706,11 +639,16 @@ namespace WinFormsApp1.Classes
                 WriteIndented = true,
             };
 
-            string jsonString = JsonSerializer.Serialize(data, options);
+            string clientJson = JsonSerializer.Serialize(clientData, options);
+            string tokenJson = JsonSerializer.Serialize(tokenData, options);
 
-            await using (StreamWriter swc = new StreamWriter(clientDataPath))
+            await using (StreamWriter swcc = new StreamWriter(clientDataPath))
             {
-                await swc.WriteLineAsync(jsonString);
+                await swcc.WriteLineAsync(clientJson);
+            }
+            await using (StreamWriter swct = new StreamWriter(tokenPath))
+            {
+                await swct.WriteLineAsync(tokenJson);
             }
 
             foreach (Tuple<string, List<string>> list in logList)
@@ -808,10 +746,7 @@ namespace WinFormsApp1.Classes
 
         public async Task AppClosing()
         {
-            if (Spark.twitchConnection)
-            {
-                await SaveData();
-            }
+            await SaveData();
             if (WebServer != null)
             {
                 if (WebServer.State == NHttp.HttpServerState.Started || WebServer.State == HttpServerState.Starting)
@@ -851,6 +786,7 @@ namespace WinFormsApp1.Classes
             ExcludeUser("SPARK_NET_TEST");
 
             ExcludeUser("FumetsuTheBot");
+            ExcludeUser("StreamAlerts");
             ExcludeUser("streamelements");
             ExcludeUser("Streamlabs");
             ExcludeUser("StreamElements");
@@ -884,16 +820,56 @@ namespace WinFormsApp1.Classes
         private async Task LoadData()
         {
             ClientData clientData = new ClientData();
-            if (System.IO.File.Exists(clientDataPath))
-            {
-                var clientJson = System.IO.File.ReadAllText(clientDataPath);
-                var Json = JsonSerializer.Deserialize<ClientData[]>(clientJson);
+            TokenData tokenData = new TokenData();
 
-                oldScopes = Json[0].Scopes;
-                accessToken = Spark.Decrypt(Json[0].Access_Token); 
-                refreshToken = Spark.Decrypt(Json[0].Refresh_Token); 
-                clientID = Json[0].Client_ID;
-                clientSecret = Json[0].Client_Secret;
+            if (File.Exists(clientDataPath))
+            {
+                var clientJson = File.ReadAllText(clientDataPath);
+
+                string[] clientKeys = { "Client_ID", "Client_Secret" };
+                if (Spark.JsonContainsKeys(clientDataPath, clientKeys))
+                {
+                    var Json = JsonSerializer.Deserialize<ClientData[]>(clientJson);
+
+                    clientID = Json[0].Client_ID;
+                    clientSecret = Json[0].Client_Secret;
+                }
+                else
+                {
+                    await Spark.CreateFile(clientDataPath);
+                    Spark.DebugLog("Client Data Missing!");
+                }
+            }
+            else
+            {
+                await Spark.CreateFile(clientDataPath);
+                Spark.DebugLog("Client Data Missing!");
+            }
+
+
+            if (File.Exists(tokenPath))
+            {
+                string[] tokenKeys = {"Access_Token", "Refresh_Token", "Scopes" };
+                var tokenJson = File.ReadAllText(tokenPath);
+
+                if (Spark.JsonContainsKeys(tokenPath, tokenKeys))
+                {
+                    var Json = JsonSerializer.Deserialize<TokenData[]>(tokenJson);
+
+                    accessToken = Spark.Decrypt(Json[0].Access_Token);
+                    refreshToken = Spark.Decrypt(Json[0].Refresh_Token);
+                    oldScopes = Json[0].Scopes;
+                }
+                else
+                {
+                    await Spark.CreateFile(tokenPath);
+                    Spark.DebugLog("Token Data Missing!");
+                }
+            }
+            else
+            {
+                await Spark.CreateFile(tokenPath);
+                Spark.DebugLog("Token Data Missing!");
             }
         }
 
@@ -906,9 +882,12 @@ namespace WinFormsApp1.Classes
         {
             public string Client_ID { get; set; }
             public string Client_Secret { get; set; }
+        }
 
-            public string Refresh_Token { get; set; }
+        public class TokenData
+        {
             public string Access_Token { get; set; }
+            public string Refresh_Token { get; set; }
 
             public string Scopes { get; set; }
         }

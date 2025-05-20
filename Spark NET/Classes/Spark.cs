@@ -5,6 +5,8 @@ using System.Diagnostics;
 using System.Text.Json;
 using Spark_NET.Classes;
 using NAudio.Vorbis;
+using static WinFormsApp1.Classes.Twitch;
+using System.Text.Json.Nodes;
 
 
 // Add Global Keybind Support
@@ -144,6 +146,43 @@ namespace WinFormsApp1.Classes
             }
         }
 
+        /// <summary>
+        /// Checks if the JSON file contains the specified keys.
+        /// </summary>
+        /// <param name="jsonPath"></param>
+        /// <param name="keys"></param>
+        /// <returns></returns>
+        public bool JsonContainsKeys(string jsonPath, string[] keys)
+        {
+            var json = File.ReadAllText(jsonPath);
+            if (json.Length >= 1)
+            {
+                JsonNode? node = JsonObject.Parse(json);
+
+                if (node is JsonArray arr && arr.Count > 0 && arr[0] is JsonObject obj)
+                {
+                    bool allKeysPresent = keys.All(key => obj.ContainsKey(key));
+
+                    if (allKeysPresent)
+                    {
+                        return true;
+                    }
+                    else
+                    {
+                        return false;
+                    }
+                }
+                else
+                {
+                    return false;
+                }
+            }
+            else
+            {
+                return false;
+            }
+        }
+
         public string Decrypt(string text)
         {
             if (text == null || text == "%null%")
@@ -234,7 +273,9 @@ namespace WinFormsApp1.Classes
             }
             if (!File.Exists(Path))
             {
-                File.OpenWrite(Path);
+                var file = File.OpenWrite(Path);
+                await file.FlushAsync();
+                file.Close();
             }
         }
 
