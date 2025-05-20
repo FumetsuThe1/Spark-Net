@@ -5,7 +5,6 @@ using System.Diagnostics;
 using System.Text.Json;
 using Spark_NET.Classes;
 using NAudio.Vorbis;
-using static WinFormsApp1.Classes.Twitch;
 using System.Text.Json.Nodes;
 
 
@@ -281,12 +280,24 @@ namespace WinFormsApp1.Classes
 
         public async Task AppLoad()
         {
+            #region FilePaths
             await CreatePath(dataPath);
             await CreatePath(Path.Combine(dataPath, "Logs"));
             await CreatePath(twitchPath);
             await CreatePath(Path.Combine(twitchPath, "Twitch Logs"));
             await CreatePath(soundsPath);
             await CreatePath(Path.Combine(soundsPath, "Twitch"));
+            await CreatePath(Path.Combine(twitchPath, "Data"));
+            #endregion
+
+            #region Files
+            await CreateFile(Path.Combine(twitchPath, "Data", "README.txt"));
+            #endregion
+
+            await using (StreamWriter swc = new StreamWriter(Path.Combine(twitchPath, "Data", "README.txt")))
+            {
+                await swc.WriteLineAsync("The data within this folder is highly sensitive, do not share this with anyone!");
+            }
 
             ResetLog();
 

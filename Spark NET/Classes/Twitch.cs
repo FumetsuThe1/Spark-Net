@@ -33,6 +33,7 @@ namespace WinFormsApp1.Classes
             services.AddTwitchLibEventSubWebsockets();
             services.AddHostedService<eWebsocketHostedService>();
         }).Build();
+
         bool logMessages = true;
 
         string DirectURL = "http://localhost:3000";
