@@ -58,7 +58,6 @@ namespace WinFormsApp1.Classes
 
         public string dataPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Spark NET");
         public string binData = Path.Combine(Environment.CurrentDirectory, "Data");
-        public string twitchPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Spark NET", "Twitch");
         public string optionsPath = Path.Combine(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Spark NET"), "Settings.json");
         public string soundsPath = Path.Combine(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Spark NET"), "Sounds");
 
@@ -283,20 +282,20 @@ namespace WinFormsApp1.Classes
             #region FilePaths
             await CreatePath(dataPath);
             await CreatePath(Path.Combine(dataPath, "Logs"));
-            await CreatePath(twitchPath);
-            await CreatePath(Path.Combine(twitchPath, "Twitch Logs"));
+            await CreatePath(Twitch.twitchPath);
+            await CreatePath(Path.Combine(Twitch.twitchPath, "Twitch Logs"));
             await CreatePath(soundsPath);
             await CreatePath(Path.Combine(soundsPath, "Twitch"));
-            await CreatePath(Path.Combine(twitchPath, "Data"));
+            await CreatePath(Path.Combine(Twitch.twitchPath, "Data"));
             #endregion
 
             #region Files
-            await CreateFile(Path.Combine(twitchPath, "Data", "README.txt"));
+            await CreateFile(Path.Combine(Twitch.twitchPath, "Data", "README.txt"));
             #endregion
 
-            await using (StreamWriter swc = new StreamWriter(Path.Combine(twitchPath, "Data", "README.txt")))
+            await using (StreamWriter swc = new StreamWriter(Path.Combine(Twitch.twitchPath, "Data", "README.txt")))
             {
-                await swc.WriteLineAsync("The data within this folder is highly sensitive, do not share this with anyone!");
+                await swc.WriteLineAsync("THE DATA WITHIN THIS FOLDER IS HIGHLY SENSITIVE, DO NOT SHARE IT WITH ANYONE!");
             }
 
             ResetLog();
