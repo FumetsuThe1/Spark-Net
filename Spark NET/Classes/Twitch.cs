@@ -438,9 +438,11 @@ namespace WinFormsApp1.Classes
 
         public void ExcludeUser(string User)
         {
-            if (!excludedUsers.Contains(User))
+            string user = User.ToLower();
+
+            if (!excludedUsers.Contains(user))
             {
-                excludedUsers.Add(User);
+                excludedUsers.Add(user);
             }
             else
             {
@@ -753,8 +755,7 @@ namespace WinFormsApp1.Classes
             ExcludeUser("SPARK_NET_TEST");
 
             ExcludeUser("FumetsuTheBot");
-            ExcludeUser("StreamAlerts");
-            ExcludeUser("streamelements");
+            ExcludeUser("SoundAlerts");
             ExcludeUser("Streamlabs");
             ExcludeUser("StreamElements");
             ExcludeUser("Nightbot");
