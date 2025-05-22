@@ -18,6 +18,7 @@ using TwitchLib.EventSub.Websockets;
 using TwitchLib.EventSub.Websockets.Core.EventArgs;
 using TwitchLib.EventSub.Websockets.Core.EventArgs.Channel;
 using TwitchLib.EventSub.Websockets.Core.EventArgs.Stream;
+using TwitchLib.EventSub.Websockets.Core.EventArgs.User;
 using TwitchLib.EventSub.Websockets.Extensions;
 using WinFormsApp1.Designs;
 
@@ -34,7 +35,7 @@ namespace WinFormsApp1.Classes
         IHost _host = new HostBuilder().ConfigureServices((hostContext, services) =>
         {
             services.AddTwitchLibEventSubWebsockets();
-            services.AddHostedService<eWebsocketHostedService>();
+            services.AddHostedService<EventSubService>();
         }).Build();
 
         bool logMessages = true;
@@ -93,7 +94,7 @@ namespace WinFormsApp1.Classes
 
         public void Shoutout(string userId)
         {
-            API.Helix.Chat.SendShoutoutAsync(GetBroadcasterID(), "fumetsuthealt", accessToken);
+            API.Helix.Chat.SendShoutoutAsync(GetBroadcasterID(), userId, GetBroadcasterID(), accessToken);
         }
 
         public void CreateClip()
@@ -504,15 +505,6 @@ namespace WinFormsApp1.Classes
 
         #region Events
 
-        private void RaidDetected(object? sender, TwitchLib.Client.Events.OnRaidNotificationArgs e)
-        {
-            string raider = e.RaidNotification.DisplayName;
-            string viewerCount = e.RaidNotification.MsgParamViewerCount;
-            Log(raider + " is raiding with " + viewerCount + " viewers!");
-            StoreLog(streamLogs, " " + Spark.CurrentTime() + "  -  " + raider + " is raiding with " + viewerCount + " viewers!");
-            SendMessage($"{raider} is raiding with {viewerCount} viewers!");
-        }
-
         private void ViewerLeft(object? sender, TwitchLib.Client.Events.OnUserLeftArgs e)
         {
             currentViewers = -1;
@@ -538,37 +530,6 @@ namespace WinFormsApp1.Classes
         {
             Log("Left Channel " + e.Channel);
         }
-
-        private void MessageReceived(object? sender, TwitchLib.Client.Events.OnMessageReceivedArgs e)
-        {
-            RecentUser = e.ChatMessage.UserId;
-            TwitchLib.Client.Models.ChatMessage Message = e.ChatMessage;
-            Spark.DebugLog(Message.Message);
-            if (logMessages)
-            {
-                Spark.Log(Message.DisplayName + ": " + Message.Message, Color.MediumPurple);
-            }
-            string String = " " + Spark.CurrentTime() + "  -  " + Message.DisplayName + ": " + Message.Message;
-            StoreLog(messageLogs, String);
-        }
-
-        private void UserBanned(object? sender, TwitchLib.Client.Events.OnUserBannedArgs e)
-        {
-            string viewer = e.UserBan.Username;
-            string banReason = e.UserBan.BanReason;
-            StoreLog(moderationLogs, " " + Spark.CurrentTime() + "  -  " + viewer + " has been banned for " + banReason);
-            Log("User Banned: " + viewer);
-        }
-
-        private void UserTimedOut(object? sender, TwitchLib.Client.Events.OnUserTimedoutArgs e)
-        {
-            string viewer = e.UserTimeout.Username;
-            int timeoutDuration = e.UserTimeout.TimeoutDuration;
-            string timeoutReason = e.UserTimeout.TimeoutReason;
-            StoreLog(moderationLogs, viewer + " has been timed out for " + timeoutDuration + " seconds for " + timeoutReason);
-            Log("User Timed Out: " + viewer);
-        }
-
         #endregion
 
 
@@ -708,11 +669,15 @@ namespace WinFormsApp1.Classes
         /// <param name="list"></param>
         /// <param name="data"></param>
         /// <param name="dataLimit"></param>
-        public void StoreLog(List<string> list, string data, int dataLimit = 5000)
+        public void StoreLog(List<string> list, string data, int dataLimit = 5000, bool storeGlobally = true)
         {
             EnsureLimit(list, dataLimit, true);
             list.Add(data);
-            twitchLogs.Add(data);
+            if (storeGlobally)
+            {
+                EnsureLimit(twitchLogs, 999999, true);
+                twitchLogs.Add(data);
+            }
         }
 
         /// <summary>
@@ -879,24 +844,9 @@ namespace WinFormsApp1.Classes
 
 
 
-
-        public class ClientData
+        public class EventSubService : IHostedService
         {
-            public string Client_ID { get; set; }
-            public string Client_Secret { get; set; }
-        }
-
-        public class TokenData
-        {
-            public string Access_Token { get; set; }
-            public string Refresh_Token { get; set; }
-
-            public string Scopes { get; set; }
-        }
-
-        public class eWebsocketHostedService : IHostedService
-        {
-            private readonly ILogger<WebsocketHostedService> _logger;
+            private readonly ILogger<EventSubService> _logger;
             private readonly EventSubWebsocketClient _eventSubWebsocketClient;
             private readonly TwitchAPI _twitchAPI = Classes.Twitch.API;
             private string _userId;
@@ -906,6 +856,8 @@ namespace WinFormsApp1.Classes
 
 
             #region Events
+
+            #region Viewers
             private async Task ChannelPointRedemption(object? sender, ChannelPointsCustomRewardRedemptionArgs e)
             {
                 var eventData = e.Notification.Payload.Event;
@@ -917,6 +869,21 @@ namespace WinFormsApp1.Classes
                 Twitch.SendMessage(user + " Redeemed " + reward + " for " + eventData.Reward.Cost + " Poinks!");
             }
 
+            private async Task MessageReceived(object? sender, ChannelChatMessageArgs e)
+            {
+                var eventData = e.Notification.Payload.Event;
+                string user = eventData.ChatterUserName;
+                string broadcaster = eventData.BroadcasterUserName;
+                string message = eventData.Message.Text;
+                string messageId = eventData.MessageId;
+
+                Spark.Log(eventData.ChatterUserName + ": " + eventData.Message.Text, Color.MediumPurple);
+                Twitch.StoreLog(Classes.Twitch.messageLogs, $"{eventData.ChatterUserName}: {eventData.Message.Text}");
+            }
+            #endregion
+
+
+            #region Stream
             private async Task OnChannelRaid(object? sender, ChannelRaidArgs e)
             {
                 var eventData = e.Notification.Payload.Event;
@@ -938,27 +905,15 @@ namespace WinFormsApp1.Classes
                 Twitch.StoreLog(Classes.Twitch.streamLogs, $"{eventData.UserName} just followed!");
             }
 
-            private async Task MessageReceived(object? sender, ChannelChatMessageArgs e)
+
+            private async Task OnShoutoutReceived(object? sender, ChannelShoutoutReceiveArgs e)
             {
                 var eventData = e.Notification.Payload.Event;
-                string user = eventData.ChatterUserName;
-                string broadcaster = eventData.BroadcasterUserName;
-                string message = eventData.Message.Text;
-                string messageId = eventData.MessageId;
+                string user = eventData.BroadcasterUserName;
+                string receiver = eventData.ToBroadcasterUserId;
 
-                Spark.Log(eventData.ChatterUserName + ": " + eventData.Message.Text, Color.MediumPurple);
-                Twitch.StoreLog(Classes.Twitch.messageLogs, $"{eventData.ChatterUserName}: {eventData.Message.Text}");
-            }
-
-            private async Task BitsCheered(object? sender, ChannelCheerArgs e)
-            {
-                var eventData = e.Notification.Payload.Event;
-                string user = eventData.UserName;
-                string message = eventData.Message;
-                int bits = eventData.Bits;
-
-                Twitch.Log(eventData.UserName + " has cheered " + eventData.Bits + " bits!");
-                Twitch.StoreLog(Twitch.streamLogs, $"{eventData.UserName} cheered {eventData.Bits} bits!");
+                Twitch.Log($"You have received a shoutout from {user}");
+                Twitch.StoreLog(Classes.Twitch.streamLogs, $"You have received a shoutout from {user}");
             }
 
             private async Task ShoutoutGiven(object? sender, ChannelShoutoutCreateArgs e)
@@ -970,6 +925,7 @@ namespace WinFormsApp1.Classes
                 Twitch.Log($"{eventData.ModeratorUserName} gave a shoutout to {eventData.ToBroadcasterUserName}");
                 Twitch.StoreLog(Classes.Twitch.streamLogs, $"{eventData.ModeratorUserName} gave a shoutout to {eventData.ToBroadcasterUserName}");
             }
+
 
             private async Task OnStreamOnline(object? sender, StreamOnlineArgs e)
             {
@@ -989,88 +945,16 @@ namespace WinFormsApp1.Classes
                 Twitch.StoreLog(Classes.Twitch.streamLogs, $"You have stopped streaming at {Spark.CurrentTime()}");
             }
 
-            private async Task OnShoutoutReceived(object? sender, ChannelShoutoutReceiveArgs e)
+            private async Task OnChannelUpdate(object? sender, ChannelUpdateArgs e)
             {
                 var eventData = e.Notification.Payload.Event;
-                string user = eventData.BroadcasterUserName;
-                string receiver = eventData.ToBroadcasterUserId;
+                string title = eventData.Title;
+                string category = eventData.CategoryName;
 
-                Twitch.Log($"You have received a shoutout from {user}");
-                Twitch.StoreLog(Classes.Twitch.streamLogs, $"You have received a shoutout from {user}");
+                Twitch.Log($"The channel has been updated with title ({title}) and category ({category})");
+                Twitch.StoreLog(Classes.Twitch.streamLogs, $"The channel has been updated with title ({title}) and category ({category})");
             }
 
-            private async Task ReceivedSub(object? sender, ChannelSubscribeArgs e)
-            {
-                var eventData = e.Notification.Payload.Event;
-                string user = eventData.UserName;
-                string tier = eventData.Tier;
-
-                switch (tier)
-                {
-                    case "1000":
-                        Twitch.Log($"{user} just Tier 1 subscribed!");
-                        Twitch.StoreLog(Classes.Twitch.streamLogs, $"{user} just Tier 1 subscribed!");
-                        break;
-                    case "2000":
-                        Twitch.Log($"{user} just Tier 2 subscribed!");
-                        Twitch.StoreLog(Classes.Twitch.streamLogs, $"{user} just Tier 2 subscribed!");
-                        break;
-                    case "3000":
-                        Twitch.Log($"{user} just Tier 3 subscribed!");
-                        Twitch.StoreLog(Classes.Twitch.streamLogs, $"{user} just Tier 3 subscribed!");
-                        break;
-                    default:
-                        Twitch.Log($"{user} is a mysterious subscriber!");
-                        Twitch.StoreLog(Classes.Twitch.streamLogs, $"{user} is a mysterious subscriber!");
-                        break;
-                }
-                Twitch.StoreLog(Classes.Twitch.streamLogs, $"The rest of the outside of the Subscriber Switch case still works!");
-            }
-
-            private async Task OnUserBanned(object? sender, ChannelBanArgs e)
-            {
-                var eventData = e.Notification.Payload.Event;
-                string user = eventData.UserName;
-                string moderator = eventData.ModeratorUserName;
-                string reason = eventData.Reason;
-
-                if (eventData.IsPermanent)
-                {
-                    if (eventData.Reason != "")
-                    {
-                        Twitch.Log($"{user} has been banned by {moderator} for {reason}");
-                        Twitch.StoreLog(Classes.Twitch.moderationLogs, $"{user} has been banned by {moderator} for {reason}");
-                    }
-                    else
-                    {
-                        Twitch.Log($"{user} has been banned by {moderator}");
-                        Twitch.StoreLog(Classes.Twitch.moderationLogs, $"{user} has been banned by {moderator}");
-                    }
-                }
-                else
-                {
-                    if (eventData.Reason != "")
-                    {
-                        Twitch.Log($"{user} has been timed out by {moderator} for {eventData.EndsAt.Value.Second - eventData.BannedAt.Second} seconds for {reason}!");
-                        Twitch.StoreLog(Classes.Twitch.moderationLogs, $"{user} has been timed out by {moderator} for {eventData.EndsAt.Value.Second - eventData.BannedAt.Second} seconds for {reason}!");
-                    }
-                    else
-                    {
-                        Twitch.Log($"{user} has been timed out by {moderator} for {eventData.EndsAt.Value.Second - eventData.BannedAt.Second} seconds!");
-                        Twitch.StoreLog(Classes.Twitch.moderationLogs, $"{user} has been timed out by {moderator} for {eventData.EndsAt.Value.Second - eventData.BannedAt.Second} seconds!");
-                    }
-                }
-            }
-
-            private async Task OnUserUnbanned(object? sender, ChannelUnbanArgs e)
-            {
-                var eventData = e.Notification.Payload.Event;
-                string user = eventData.UserName;
-                string moderator = eventData.ModeratorUserName;
-
-                Twitch.Log($"{user} has been unbanned by {moderator}");
-                Twitch.StoreLog(Classes.Twitch.moderationLogs, $"{user} has been unbanned by {moderator}");
-            }
 
             private async Task OnChannelGoalBegin(object? sender, ChannelGoalBeginArgs e)
             {
@@ -1141,6 +1025,7 @@ namespace WinFormsApp1.Classes
                 }
             }
 
+
             private async Task HypeTrainBegin(object? sender, ChannelHypeTrainBeginArgs e)
             {
                 var eventData = e.Notification.Payload.Event;
@@ -1184,20 +1069,329 @@ namespace WinFormsApp1.Classes
                 Twitch.StoreLog(Classes.Twitch.streamLogs, $"A hype train has ended at level {level} with {total} total points!");
             }
 
-            private async Task OnChannelUpdate(object? sender, ChannelUpdateArgs e)
+
+            private async Task ChannelVipAdded(object? sender, ChannelVipArgs e)
+            {
+                var eventData = e.Notification.Payload.Event;
+                string user = eventData.UserName;
+
+                Twitch.Log($"{user} has been given VIP status!");
+                Twitch.StoreLog(Classes.Twitch.streamLogs, $"{user} has been given VIP status!");
+            }
+
+            private async Task ChannelVipRemoved(object? sender, ChannelVipArgs e)
+            {
+                var eventData = e.Notification.Payload.Event;
+                string user = eventData.UserName;
+
+                Twitch.Log($"{user} has been revoked VIP status!");
+                Twitch.StoreLog(Classes.Twitch.streamLogs, $"{user} has been revoked VIP status!");
+            }
+
+
+            private async Task ChannelModeratorAdded(object? sender, ChannelModeratorArgs e)
+            {
+                var eventData = e.Notification.Payload.Event;
+                string user = eventData.UserName;
+
+                Twitch.Log($"{user} has been made a moderator!");
+                Twitch.StoreLog(Twitch.streamLogs, $"{user} has been made a moderator!");
+                Twitch.StoreLog(Twitch.moderationLogs, $"{user} has been made a moderator!", storeGlobally: false);
+            }
+
+            private async Task ChannelModeratorRemoved(object? sender, ChannelModeratorArgs e)
+            {
+                var eventData = e.Notification.Payload.Event;
+                string user = eventData.UserName;
+
+                Twitch.Log($"{user} has been removed as a moderator!");
+                Twitch.StoreLog(Twitch.streamLogs, $"{user} has been removed as a moderator!");
+                Twitch.StoreLog(Twitch.moderationLogs, $"{user} has been removed as a moderator!", storeGlobally: false);
+            }
+
+
+            private async Task ChannelPollBegan(object? sender, ChannelPollBeginArgs e)
             {
                 var eventData = e.Notification.Payload.Event;
                 string title = eventData.Title;
-                string category = eventData.CategoryName;
+                string broadcaster = eventData.BroadcasterUserName;
 
-                Twitch.Log($"The channel has been updated with title ({title}) and category ({category})");
-                Twitch.StoreLog(Classes.Twitch.streamLogs, $"The channel has been updated with title ({title}) and category ({category})");
+                Twitch.Log($"A new poll has been started: {title}");
+                Twitch.StoreLog(Twitch.streamLogs, $"A new poll has been started: {title}");
+            }
+
+            private async Task ChannelPollProgress(object? sender, ChannelPollProgressArgs e)
+            {
+                var eventData = e.Notification.Payload.Event;
+                string title = eventData.Title;
+                string broadcaster = eventData.BroadcasterUserName;
+            }
+
+            private async Task ChannelPollEnded(object? sender, ChannelPollEndArgs e)
+            {
+                var eventData = e.Notification.Payload.Event;
+                string title = eventData.Title;
+                string broadcaster = eventData.BroadcasterUserName;
+                string status = eventData.Status;
+
+                switch (status)
+                {
+                    case "completed":
+                        Twitch.Log($"The poll has ended: {title}");
+                        Twitch.StoreLog(Twitch.streamLogs, $"The poll has ended: {title}");
+                        break;
+                    case "terminated":
+                        Twitch.Log($"The poll has been terminated: {title}");
+                        Twitch.StoreLog(Twitch.streamLogs, $"The poll has been terminated: {title}");
+                        break;
+                    case "archived":
+                        Twitch.Log($"The poll has been archived: {title}");
+                        Twitch.StoreLog(Twitch.streamLogs, $"The poll has been archived: {title}");
+                        break;
+                }
+            }
+
+
+            private async Task ChannelPredictionBegan(object? sender, ChannelPredictionBeginArgs e)
+            {
+                var eventData = e.Notification.Payload.Event;
+                string title = eventData.Title;
+                string broadcaster = eventData.BroadcasterUserName;
+
+                Twitch.Log($"A new prediction has been started: {title}");
+                Twitch.StoreLog(Twitch.streamLogs, $"A new prediction has been started: {title}");
+            }
+
+            private async Task ChannelPredictionLocked(object? sender, ChannelPredictionLockArgs e)
+            {
+                var eventData = e.Notification.Payload.Event;
+                string title = eventData.Title;
+                string broadcaster = eventData.BroadcasterUserName;
+            }
+
+            private async Task ChannelPredictionProgress(object? sender, ChannelPredictionProgressArgs e)
+            {
+                var eventData = e.Notification.Payload.Event;
+                string title = eventData.Title;
+                string broadcaster = eventData.BroadcasterUserName;
+            }
+
+            private async Task ChannelPredictionEnded(object? sender, ChannelPredictionEndArgs e)
+            {
+                var eventData = e.Notification.Payload.Event;
+                string title = eventData.Title;
+                string broadcaster = eventData.BroadcasterUserName;
+                string status = eventData.Status;
+
+                switch (status)
+                {
+                    case "resolved":
+                        Twitch.Log($"The prediction has ended: {title}");
+                        Twitch.StoreLog(Twitch.streamLogs, $"The prediction has ended: {title}");
+                        break;
+                    case "canceled":
+                        Twitch.Log($"The prediction has been cancelled: {title}");
+                        Twitch.StoreLog(Twitch.streamLogs, $"The prediction has been cancelled: {title}");
+                        break;
+                }
+            }
+
+            #endregion
+
+
+            #region Moderation
+            private async Task OnUserBanned(object? sender, ChannelBanArgs e)
+            {
+                var eventData = e.Notification.Payload.Event;
+                string user = eventData.UserName;
+                string moderator = eventData.ModeratorUserName;
+                string reason = eventData.Reason;
+
+                if (eventData.IsPermanent)
+                {
+                    if (eventData.Reason != "")
+                    {
+                        Twitch.Log($"{user} has been banned by {moderator} for {reason}");
+                        Twitch.StoreLog(Classes.Twitch.moderationLogs, $"{user} has been banned by {moderator} for {reason}");
+                    }
+                    else
+                    {
+                        Twitch.Log($"{user} has been banned by {moderator}");
+                        Twitch.StoreLog(Classes.Twitch.moderationLogs, $"{user} has been banned by {moderator}");
+                    }
+                }
+                else
+                {
+                    if (eventData.Reason != "")
+                    {
+                        Twitch.Log($"{user} has been timed out by {moderator} for {eventData.EndsAt.Value.Second - eventData.BannedAt.Second} seconds for {reason}!");
+                        Twitch.StoreLog(Classes.Twitch.moderationLogs, $"{user} has been timed out by {moderator} for {eventData.EndsAt.Value.Second - eventData.BannedAt.Second} seconds for {reason}!");
+                    }
+                    else
+                    {
+                        Twitch.Log($"{user} has been timed out by {moderator} for {eventData.EndsAt.Value.Second - eventData.BannedAt.Second} seconds!");
+                        Twitch.StoreLog(Classes.Twitch.moderationLogs, $"{user} has been timed out by {moderator} for {eventData.EndsAt.Value.Second - eventData.BannedAt.Second} seconds!");
+                    }
+                }
+            }
+
+            private async Task OnUserUnbanned(object? sender, ChannelUnbanArgs e)
+            {
+                var eventData = e.Notification.Payload.Event;
+                string user = eventData.UserName;
+                string moderator = eventData.ModeratorUserName;
+
+                Twitch.Log($"{user} has been unbanned by {moderator}");
+                Twitch.StoreLog(Classes.Twitch.moderationLogs, $"{user} has been unbanned by {moderator}");
+            }
+
+
+            private async Task ChannelWarningSent(object? sender, ChannelWarningSendArgs e)
+            {
+                var eventData = e.Notification.Payload.Event;
+                string user = eventData.UserName;
+                string moderator = eventData.ModeratorUserName;
+                string reason = eventData.Reason;
+
+                Twitch.Log($"A warning has been to {user} by {moderator} for: {reason}");
+                Twitch.StoreLog(Twitch.moderationLogs, $"A warning has been to {user} by {moderator} for: {reason}");
+            }
+
+            private async Task ChannelWarningAcknowledged(object? sender, ChannelWarningAcknowledgeArgs e)
+            {
+                var eventData = e.Notification.Payload.Event;
+                string user = eventData.UserName;
+
+                Twitch.Log($"A warning has been acknowledged by {user}");
+                Twitch.StoreLog(Twitch.moderationLogs, $"A warning has been acknowledged by {user}");
             }
             #endregion
 
 
+            #region Earnings
+            private async Task BitsCheered(object? sender, ChannelCheerArgs e)
+            {
+                var eventData = e.Notification.Payload.Event;
+                string user = eventData.UserName;
+                string message = eventData.Message;
+                int bits = eventData.Bits;
+
+                Twitch.Log(eventData.UserName + " has cheered " + eventData.Bits + " bits!");
+                Twitch.StoreLog(Twitch.streamLogs, $"{eventData.UserName} cheered {eventData.Bits} bits!");
+            }
+            private async Task ChannelAdBreakBegan(object? sender, ChannelAdBreakBeginArgs e)
+            {
+                var eventData = e.Notification.Payload.Event;
+                string requester = eventData.RequesterUserName;
+                int duration = eventData.DurationSeconds;
+
+                Twitch.Log($"An ad break has started by {requester} for {duration} seconds!");
+                Twitch.StoreLog(Twitch.streamLogs, $"An ad break has started by {requester} for {duration} seconds!");
+            }
+
+
+            private async Task ReceivedSub(object? sender, ChannelSubscribeArgs e)
+            {
+                var eventData = e.Notification.Payload.Event;
+                string user = eventData.UserName;
+                string tier = eventData.Tier;
+
+                switch (tier)
+                {
+                    case "1000":
+                        Twitch.Log($"{user} just Tier 1 subscribed!");
+                        Twitch.StoreLog(Classes.Twitch.streamLogs, $"{user} just Tier 1 subscribed!");
+                        break;
+                    case "2000":
+                        Twitch.Log($"{user} just Tier 2 subscribed!");
+                        Twitch.StoreLog(Classes.Twitch.streamLogs, $"{user} just Tier 2 subscribed!");
+                        break;
+                    case "3000":
+                        Twitch.Log($"{user} just Tier 3 subscribed!");
+                        Twitch.StoreLog(Classes.Twitch.streamLogs, $"{user} just Tier 3 subscribed!");
+                        break;
+                    default:
+                        Twitch.Log($"{user} is a mysterious subscriber!");
+                        Twitch.StoreLog(Classes.Twitch.streamLogs, $"{user} is a mysterious subscriber!");
+                        break;
+                }
+                Twitch.StoreLog(Classes.Twitch.streamLogs, $"The rest of the outside of the Subscriber Switch case still works!");
+            }
+            private async Task ChannelSubscriptionEnded(object? sender, ChannelSubscriptionEndArgs e)
+            {
+                var eventData = e.Notification.Payload.Event;
+                string user = eventData.UserName;
+
+                switch (eventData.Tier)
+                {
+                    case "1000":
+                        Twitch.Log($"{user} has ended their Tier 1 subscription!");
+                        Twitch.StoreLog(Twitch.streamLogs, $"{user} has ended their Tier 1 subscription!");
+                        break;
+                    case "2000":
+                        Twitch.Log($"{user} has ended their Tier 2 subscription!");
+                        Twitch.StoreLog(Twitch.streamLogs, $"{user} has ended their Tier 2 subscription!");
+                        break;
+                    case "3000":
+                        Twitch.Log($"{user} has ended their Tier 3 subscription!");
+                        Twitch.StoreLog(Twitch.streamLogs, $"{user} has ended their Tier 3 subscription!");
+                        break;
+                }
+            }
+
+            private async Task ChannelSubscriptionGifted(object? sender, ChannelSubscriptionGiftArgs e)
+            {
+                var eventData = e.Notification.Payload.Event;
+                string user = eventData.UserName;
+                int total = eventData.Total;
+                string tier = "??";
+
+                switch (eventData.Tier)
+                {
+                    case "1000":
+                        tier = "1";
+                        break;
+                    case "2000":
+                        tier = "2";
+                        break;
+                    case "3000":
+                        tier = "3";
+                        break;
+                }
+
+                Twitch.Log($"{user} has gifted {total} Tier {tier} Subs!");
+                Twitch.StoreLog(Twitch.streamLogs, $"{user} has gifted {total} Tier {tier} Subs!");
+            }
+
+            private async Task ChannelSubscriptionMessage(object? sender, ChannelSubscriptionMessageArgs e)
+            {
+                var eventData = e.Notification.Payload.Event;
+                string user = eventData.UserName;
+                string message = eventData.Message.Text;
+                int? streak = eventData.StreakMonths;
+                int totalmonths = eventData.CumulativeMonths;
+
+                Twitch.Log($"{user} has sent a subscription message: {message}");
+                Twitch.StoreLog(Twitch.streamLogs, $"{user} has sent a subscription message: {message}");
+            }
+            #endregion
+
+
+            private async Task UserWhisperMessageReceived(object? sender, UserWhisperMessageArgs e)
+            {
+                var eventData = e.Notification.Payload.Event;
+                string fromuser = eventData.FromUserName;
+                string touser = eventData.ToUserName;
+                string message = eventData.Whisper.Text;
+
+                Twitch.Log($"{fromuser} has sent you a whisper!");
+            }
+
+            #endregion
+
+
             // Add Event Connections Here!
-            public eWebsocketHostedService(ILogger<WebsocketHostedService> logger, EventSubWebsocketClient eventSubWebsocketClient)
+            public EventSubService(ILogger<EventSubService> logger, EventSubWebsocketClient eventSubWebsocketClient)
             {
                 _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
@@ -1207,27 +1401,70 @@ namespace WinFormsApp1.Classes
                 _eventSubWebsocketClient.WebsocketReconnected += OnWebsocketReconnected;
                 _eventSubWebsocketClient.ErrorOccurred += OnErrorOccurred;
 
+
+                #region Viewers
                 _eventSubWebsocketClient.ChannelChatMessage += MessageReceived;
-                _eventSubWebsocketClient.ChannelFollow += OnChannelFollow;
-                _eventSubWebsocketClient.ChannelRaid += OnChannelRaid;
                 _eventSubWebsocketClient.ChannelPointsCustomRewardRedemptionAdd += ChannelPointRedemption;
-                _eventSubWebsocketClient.ChannelSubscribe += ReceivedSub;
-                _eventSubWebsocketClient.ChannelCheer += BitsCheered;
-                _eventSubWebsocketClient.ChannelShoutoutCreate += ShoutoutGiven;
-                _eventSubWebsocketClient.ChannelShoutoutReceive += OnShoutoutReceived;
+                #endregion
+
+
+                #region Stream
                 _eventSubWebsocketClient.StreamOnline += OnStreamOnline;
                 _eventSubWebsocketClient.StreamOffline += OnStreamOffline;
-                _eventSubWebsocketClient.ChannelBan += OnUserBanned;
-                _eventSubWebsocketClient.ChannelUnban += OnUserUnbanned;
+                _eventSubWebsocketClient.ChannelUpdate += OnChannelUpdate;
+
+                _eventSubWebsocketClient.ChannelFollow += OnChannelFollow;
+                _eventSubWebsocketClient.ChannelRaid += OnChannelRaid;
+
+                _eventSubWebsocketClient.ChannelShoutoutCreate += ShoutoutGiven;
+                _eventSubWebsocketClient.ChannelShoutoutReceive += OnShoutoutReceived;
+
                 _eventSubWebsocketClient.ChannelGoalBegin += OnChannelGoalBegin;
-                _eventSubWebsocketClient.ChannelGoalProgress += OnChannelGoalProgress;  
+                _eventSubWebsocketClient.ChannelGoalProgress += OnChannelGoalProgress;
                 _eventSubWebsocketClient.ChannelGoalEnd += OnChannelGoalEnd;
+
+                _eventSubWebsocketClient.ChannelPollBegin += ChannelPollBegan;
+                _eventSubWebsocketClient.ChannelPollProgress += ChannelPollProgress;
+                _eventSubWebsocketClient.ChannelPollEnd += ChannelPollEnded;
 
                 _eventSubWebsocketClient.ChannelHypeTrainBegin += HypeTrainBegin;
                 _eventSubWebsocketClient.ChannelHypeTrainProgress += HypeTrainProgress;
                 _eventSubWebsocketClient.ChannelHypeTrainEnd += HypeTrainEnd;
-                _eventSubWebsocketClient.ChannelUpdate += OnChannelUpdate;
 
+                _eventSubWebsocketClient.ChannelPredictionBegin += ChannelPredictionBegan;
+                _eventSubWebsocketClient.ChannelPredictionLock += ChannelPredictionLocked;
+                _eventSubWebsocketClient.ChannelPredictionProgress += ChannelPredictionProgress;
+                _eventSubWebsocketClient.ChannelPredictionEnd += ChannelPredictionEnded;
+
+                _eventSubWebsocketClient.ChannelModeratorAdd += ChannelModeratorAdded;
+                _eventSubWebsocketClient.ChannelModeratorRemove += ChannelModeratorRemoved;
+
+                _eventSubWebsocketClient.ChannelVipAdd += ChannelVipAdded;
+                _eventSubWebsocketClient.ChannelVipRemove += ChannelVipRemoved;
+                #endregion
+
+
+                #region Moderation
+                _eventSubWebsocketClient.ChannelBan += OnUserBanned;
+                _eventSubWebsocketClient.ChannelUnban += OnUserUnbanned;
+
+                _eventSubWebsocketClient.ChannelWarningSend += ChannelWarningSent;
+                _eventSubWebsocketClient.ChannelWarningAcknowledge += ChannelWarningAcknowledged;
+                #endregion
+
+
+                #region Earnings
+                _eventSubWebsocketClient.ChannelAdBreakBegin += ChannelAdBreakBegan;
+                _eventSubWebsocketClient.ChannelCheer += BitsCheered;
+
+                _eventSubWebsocketClient.ChannelSubscribe += ReceivedSub;
+                _eventSubWebsocketClient.ChannelSubscriptionGift += ChannelSubscriptionGifted;
+                _eventSubWebsocketClient.ChannelSubscriptionMessage += ChannelSubscriptionMessage;
+                _eventSubWebsocketClient.ChannelSubscriptionEnd += ChannelSubscriptionEnded;
+                #endregion
+
+
+                _eventSubWebsocketClient.UserWhisperMessage += UserWhisperMessageReceived;
 
 
                 _userId = _twitchAPI.Helix.Users.GetUsersAsync().Result.Users[0].Id;
@@ -1237,7 +1474,6 @@ namespace WinFormsApp1.Classes
             // Add Eventsub Subscriptions Here!
             private async Task OnWebsocketConnected(object? sender, WebsocketConnectedArgs e)
             {
-                _logger.LogInformation($"Websocket {_eventSubWebsocketClient.SessionId} connected!");
                 Twitch.Log("Websocket Connected!");
 
                 if (!e.IsRequestedReconnect)
@@ -1328,26 +1564,50 @@ namespace WinFormsApp1.Classes
 
             private async Task OnWebsocketDisconnected(object? sender, EventArgs e)
             {
-                _logger.LogError($"Websocket {_eventSubWebsocketClient.SessionId} disconnected!");
-                Classes.Twitch.Log("Websocket Disconnected!");
+                int reconnectDelay = 1; // In seconds.
+                Twitch.Log("Websocket Disconnected!");
 
-                // Don't do this in production. You should implement a better reconnect strategy with exponential backoff
-                while (!await _eventSubWebsocketClient.ReconnectAsync())
+
+                while (!await _eventSubWebsocketClient.ReconnectAsync() && reconnectDelay <= 10)
                 {
-                    _logger.LogError("Websocket reconnect failed!");
-                    await Task.Delay(1000);
+                    if ((reconnectDelay + 1) <= 10)
+                    {
+                        Twitch.Log($"Websocket failed to reconnect!");
+                    }
+                    else
+                    {
+                        Twitch.Log($"Websocket failed to reconnect! Trying again in {reconnectDelay} seconds..");
+                        await Task.Delay(reconnectDelay * 1000);
+                        reconnectDelay += 1;
+                    }
                 }
             }
 
             private async Task OnWebsocketReconnected(object? sender, EventArgs e)
             {
-                _logger.LogWarning($"Websocket {_eventSubWebsocketClient.SessionId} reconnected");
+                Twitch.Log("Websocket Reconnected!");
             }
 
             private async Task OnErrorOccurred(object? sender, ErrorOccuredArgs e)
             {
-                _logger.LogError($"Websocket {_eventSubWebsocketClient.SessionId} - Error occurred!");
+                Twitch.Log("An error has occured with the Websocket!");
             }
+        }
+
+
+
+        public class ClientData
+        {
+            public string Client_ID { get; set; }
+            public string Client_Secret { get; set; }
+        }
+
+        public class TokenData
+        {
+            public string Access_Token { get; set; }
+            public string Refresh_Token { get; set; }
+
+            public string Scopes { get; set; }
         }
     }
 }
