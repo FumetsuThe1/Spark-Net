@@ -22,6 +22,8 @@ namespace WinFormsApp1.Classes
         public bool obsConnection = false;
         public bool commandConnection = true;
 
+        bool enableSounds = true;
+
         readonly MainForm MainForm = (MainForm)System.Windows.Forms.Application.OpenForms["MainForm"];
         Twitch Twitch = Classes.Twitch;
         Recognition Recognition = Classes.Recognition;
@@ -36,84 +38,92 @@ namespace WinFormsApp1.Classes
         public bool enableLogging = true;
         public bool resetLogs = false;
 
-        public const string osName = "Spark ";
-        public const string osOpen = osName + "open ";
-        public const string osStart = osName + "start ";
+        public const string osName = "Spark";
+        public const string osOpen = osName + "open";
+        public const string osStart = osName + "start";
 
         const string steamPath = @"E:\Tools\Windows\Steam\steam.exe";
         const string epicGames = @"C:\Program Files (x86)\Epic Games\Launcher\Portal\Binaries\Win64\EpicGamesLauncher.exe";
 
         public readonly Color defaultColor = Color.White;
-        public readonly Color responseColor = Color.Aqua;
+        public readonly Color responseColor = Color.FromArgb(36, 183, 237);
 
         public readonly Color speechColor = Color.FromArgb(103, 36, 237);
-        public readonly Color warningColor = Color.Red;
+        public readonly Color warningColor = Color.FromArgb(237, 36, 36);
         public readonly Color utilColor = Color.FromArgb(237, 183, 36);
 
+        public readonly Color commandColor = Color.FromArgb(184, 118, 39);
         public readonly Color paramColor = Color.Pink;
-        readonly Color processColor = Color.Green;
+        readonly Color processColor = Color.FromArgb(65, 156, 54);
 
         const string NoActionString = " No actions have been logged..";
 
+        DateTime startupTime = DateTime.Now;
 
+
+        public string documentsPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
         public string dataPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Spark NET");
         public string binData = Path.Combine(Environment.CurrentDirectory, "Data");
         public string optionsPath = Path.Combine(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Spark NET"), "Settings.json");
         public string soundsPath = Path.Combine(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Spark NET"), "Sounds");
 
-        public Dictionary<string, string> responses = new Dictionary<string, string>();
+        public Dictionary<string, string> responses = new();
 
-        public void PlaySound(string Sound, string? soundPath = null)
+
+        public void PlaySound(string Sound, string? soundPath = null, bool forceplay = false)
         {
-            if (soundPath == null)
+            if (enableSounds || forceplay)
             {
-                soundPath = soundsPath;
-            }
-
-            if (File.Exists(Path.Combine(soundPath, Sound)))
-            {
-                string extensionType = Path.GetExtension(Path.Combine(soundPath, Sound));
-                var waveOut = new WaveOut();
-                switch (extensionType)
+                if (soundPath == null)
                 {
-                    case ".wav":
-                        var wavreader = new WaveFileReader(Path.Combine(soundPath, Sound));
-                        waveOut.Init(wavreader);
-                        waveOut.Play();
-                        waveOut.PlaybackStopped += (s, e) =>
-                        {
-                            waveOut.Dispose();
-                            wavreader.Dispose();
-                        };
-                        break;
-                    case ".mp3":
-                        var mp3reader = new Mp3FileReader(Path.Combine(soundPath, Sound));
-                        waveOut.Init(mp3reader);
-                        waveOut.Play();
-                        waveOut.PlaybackStopped += (s, e) =>
-                        {
-                            waveOut.Dispose();
-                            mp3reader.Dispose();
-                        };
-                        break;
-                    case ".ogg":
-                        var oggreader = new VorbisWaveReader(Path.Combine(soundPath, Sound));
-                        waveOut.Init(oggreader);
-                        waveOut.Play();
-                        waveOut.PlaybackStopped += (s, e) =>
-                        {
-                            waveOut.Dispose();
-                            oggreader.Dispose();
-                        };
-                        break;
-                    default:
-                        Warn("Tried to play unsupported sound type: " + extensionType);
-                        break;
+                    soundPath = soundsPath;
                 }
-            }
-            else
-            {
-                DebugLog("Failed to play sound! Sound doesn't exist!");
+
+                if (File.Exists(Path.Combine(soundPath, Sound)))
+                {
+                    string extensionType = Path.GetExtension(Path.Combine(soundPath, Sound));
+                    var waveOut = new WaveOut();
+                    switch (extensionType)
+                    {
+                        case ".wav":
+                            var wavreader = new WaveFileReader(Path.Combine(soundPath, Sound));
+                            waveOut.Init(wavreader);
+                            waveOut.Play();
+                            waveOut.PlaybackStopped += (s, e) =>
+                            {
+                                waveOut.Dispose();
+                                wavreader.Dispose();
+                            };
+                            break;
+                        case ".mp3":
+                            var mp3reader = new Mp3FileReader(Path.Combine(soundPath, Sound));
+                            waveOut.Init(mp3reader);
+                            waveOut.Play();
+                            waveOut.PlaybackStopped += (s, e) =>
+                            {
+                                waveOut.Dispose();
+                                mp3reader.Dispose();
+                            };
+                            break;
+                        case ".ogg":
+                            var oggreader = new VorbisWaveReader(Path.Combine(soundPath, Sound));
+                            waveOut.Init(oggreader);
+                            waveOut.Play();
+                            waveOut.PlaybackStopped += (s, e) =>
+                            {
+                                waveOut.Dispose();
+                                oggreader.Dispose();
+                            };
+                            break;
+                        default:
+                            Warn("Tried to play unsupported sound type: " + extensionType);
+                            break;
+                    }
+                }
+                else
+                {
+                    DebugLog("Failed to play sound! Sound doesn't exist!");
+                }
             }
         }
 
@@ -132,15 +142,22 @@ namespace WinFormsApp1.Classes
             }
             else
             {
-                string encrypted = "";
-                string firstHalf = text.Substring(0, text.Length / 2);
-                string secondHalf = text.Substring((text.Length / 2) - 3);
-                string lastLetters = text.Substring(text.Length - 3);
-                foreach (char c in text)
+                if (text.Length >= 1)
                 {
-                    encrypted += (char)(c + 2);
+                    string encrypted = "";
+                    string firstHalf = text.Substring(0, text.Length / 2);
+                    string secondHalf = text.Substring((text.Length / 2) - 3);
+                    string lastLetters = text.Substring(text.Length - 3);
+                    foreach (char c in text)
+                    {
+                        encrypted += (char)(c + 2);
+                    }
+                    return encrypted;
                 }
-                return encrypted;
+                else
+                {
+                    return "";
+                }
             }
         }
 
@@ -189,15 +206,22 @@ namespace WinFormsApp1.Classes
             }
             else
             {
-                string decrypted = "";
-                string firstHalf = text.Substring(0, text.Length / 2);
-                string secondHalf = text.Substring((text.Length / 2) - 3);
-                string lastLetters = text.Substring(text.Length - 3);
-                foreach (char c in text)
+                if (text.Length >= 1)
                 {
-                    decrypted += (char)(c - 2);
+                    string decrypted = "";
+                    string firstHalf = text.Substring(0, text.Length / 2);
+                    string secondHalf = text.Substring((text.Length / 2) - 3);
+                    string lastLetters = text.Substring(text.Length - 3);
+                    foreach (char c in text)
+                    {
+                        decrypted += (char)(c - 2);
+                    }
+                    return decrypted;
                 }
-                return decrypted;
+                else
+                {
+                    return "";
+                }
             }
         }
 
@@ -313,9 +337,9 @@ namespace WinFormsApp1.Classes
 
             #region Choices
 
-            AddChoice(osName + "ban that guy", "twitch_ban_recent");
-            AddChoice(osName + "clip that", "clip_that");
-            AddChoice(osName + "release the monkeys", "release_monkeys");
+            AddChoice($"{osName} ban that guy", "twitch_ban_recent", [$"{osName} ban that man", $"{osName} ban that fucker"]);
+            AddChoice($"{osName} clip that", "clip_that");
+            AddChoice($"{osName} release the monkeys", "release_monkeys");
 
             #endregion
 
@@ -350,11 +374,14 @@ namespace WinFormsApp1.Classes
             AddCommand("Parameter");
 
             AddCommand("Command");
+            AddCommand("Twitch");
             #endregion
 
             #region AntiMixup
             AddMixup("Clip That");
             AddMixup("Ban That Guy");
+            AddMixup("Ban That Man");
+            AddMixup("Ban That Fucker");
             AddMixup("Mods Ban That Guy");
             AddMixup("Jarvis Clip That");
             AddMixup("Jarvis Ban That Guy");
@@ -442,11 +469,23 @@ namespace WinFormsApp1.Classes
             }
         }
 
-        private void AddChoice(string Phrase, string ActionID = "%null%")
+        private void AddChoice(string Phrase, string ActionID = "%null%", List<string>? aliases = null)
         {
             Phrase = Phrase.ToLower();
-            Classes.Recognition.choices.Add(Phrase);
             Classes.Recognition.phrases.TryAdd(Phrase, ActionID);
+            Classes.Recognition.choices.Add(Phrase);
+
+            if (aliases != null)
+            {
+                foreach (string alias in aliases)
+                {
+                    string aliass = alias.ToLower();
+                    DebugLog(alias);
+                    DebugLog(ActionID);
+                    Classes.Recognition.phrases.TryAdd(aliass, ActionID);
+                    Classes.Recognition.choices.Add(aliass);
+                }
+            }
         }
 
         private void AddProcess(string Phrase, string FilePath, string Params = "")
@@ -615,11 +654,11 @@ namespace WinFormsApp1.Classes
     public class Classes
     {
         public static MainForm MainForm = (MainForm)System.Windows.Forms.Application.OpenForms["MainForm"];
-        public static Spark Spark = new Spark();
-        public static Recognition Recognition = new Recognition();
-        public static Emotion Emotion = new Emotion();
-        public static Twitch Twitch = new Twitch();
-        public static Command Command = new Command();
-        public static OBS OBS = new OBS();
+        public static Spark Spark = new();
+        public static Recognition Recognition = new();
+        public static Emotion Emotion = new();
+        public static Twitch Twitch = new();
+        public static Command Command = new();
+        public static OBS OBS = new();
     }
 }

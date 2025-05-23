@@ -43,7 +43,7 @@
             ConsoleBox.Location = new Point(-1, -1);
             ConsoleBox.Name = "ConsoleBox";
             ConsoleBox.ReadOnly = true;
-            ConsoleBox.Size = new Size(1005, 475);
+            ConsoleBox.Size = new Size(999, 447);
             ConsoleBox.TabIndex = 0;
             ConsoleBox.Text = " No actions have been logged..";
             // 

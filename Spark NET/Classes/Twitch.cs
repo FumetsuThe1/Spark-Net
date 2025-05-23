@@ -12,6 +12,8 @@ using TwitchLib.Api.Core.Enums;
 using TwitchLib.Api.Helix.Models.ChannelPoints;
 using TwitchLib.Api.Helix.Models.Moderation.GetBannedEvents;
 using TwitchLib.Client;
+using TwitchLib.Client.Enums;
+using TwitchLib.Client.Events;
 using TwitchLib.Client.Extensions;
 using TwitchLib.Client.Models;
 using TwitchLib.EventSub.Websockets;
@@ -25,7 +27,7 @@ using WinFormsApp1.Designs;
 // Add Chat Command Support
 // Add support for Connecting to Non-Broadcaster Channels
 // Add support for Same-Date Twitch Logs
-// Add more Twitch Logging (Chat Commands, Title Changes, Category Changes)
+// Add more Twitch Logging (Chat Commands)
 // Add Channel Bot Support?
 
 namespace WinFormsApp1.Classes
@@ -49,8 +51,8 @@ namespace WinFormsApp1.Classes
         string channelID = "%null%";
 
         string botUsername = "SPARK_NET_BOT";
-        string clientID = "%null%";
-        string clientSecret = "%null%";
+        string clientID = "";
+        string clientSecret = "";
 
         string accessToken = "%null%";
         string refreshToken = "%null%";
@@ -61,34 +63,34 @@ namespace WinFormsApp1.Classes
         NHttp.HttpServer WebServer;
         Spark Spark = Classes.Spark;
 
-        static public string twitchPath = Path.Combine(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), Classes.Spark.dataPath), "Twitch");
+        static public string twitchPath = Path.Combine(Path.Combine(Classes.Spark.documentsPath, Classes.Spark.dataPath), "Twitch");
         public string clientDataPath = Path.Combine(twitchPath, "Client.json");
         static public string twitchDataPath = Path.Combine(twitchPath, "Data");
         public string tokenPath = Path.Combine(twitchDataPath, "Tokens.json");
         public string twitchLogsPath = Path.Combine(twitchPath, "Twitch Logs");
 
-        List<string> streamLogs = new List<string>();
-        List<string> twitchLogs = new List<string>();
-        List<string> messageLogs = new List<string>();
-        List<string> moderationLogs = new List<string>();
-        List<string> channelPointLogs = new List<string>();
-        List<string> viewerLogs = new List<string>();
+        List<string> streamLogs = new();
+        List<string> twitchLogs = new();
+        List<string> messageLogs = new();
+        List<string> moderationLogs = new();
+        List<string> channelPointLogs = new();
+        List<string> viewerLogs = new();
 
-        List<string> whoVisited = new List<string>();
-        List<string> excludedUsers = new List<string>(); // Users that are excluded from the viewer logs.
+        List<string> whoVisited = new();
+        List<string> excludedUsers = new(); // Users that are excluded from the viewer logs.
 
-        List<Tuple<string, List<string>>> logList = new List<Tuple<string, List<string>>>();
+        List<Tuple<string, List<string>>> logList = new();
 
 
-        Dictionary<string, string> chatCommands = new Dictionary<string, string>();
+        Dictionary<string, string> chatCommands = new();
         string oldScopes = "%null%";
         string RecentUser = "%null%";
 
-        TwitchClient twitchClient = new TwitchClient();
-        public TwitchAPI API = new TwitchAPI();
+        TwitchClient twitchClient = new();
+        public TwitchAPI API = new();
 
         int currentViewers = 0;
-
+        
 
         #region Methods
 
@@ -205,16 +207,20 @@ namespace WinFormsApp1.Classes
 
         public async Task ConnectClient()
         {
+            Spark.DebugLog(accessToken);
             ConnectionCredentials Credentials = new ConnectionCredentials(botUsername, accessToken);
 
             twitchClient.Initialize(Credentials);
 
             twitchClient.Connect();
 
+            ExcludeUser(GetUserFromID(GetBroadcasterID()));
+
             ConnectEvents();
 
             Log("Connected To Twitch!");
             JoinChannel();
+            OnConnected();
         }
 
 
@@ -223,8 +229,15 @@ namespace WinFormsApp1.Classes
         /// </summary>
         /// <param name="userID"></param>
         /// <returns></returns>
-        public async Task BanUser(string userID, int duration = -1, string? Reason = "")
+        public async Task BanUser(string userID, int? duration = -1, string? Reason = "")
         {
+            userID = userID.ToLower();
+
+            if (duration <= -1)
+            {
+                duration = null;
+            }
+
             if (twitchClient.IsConnected)
             {
                 try
@@ -236,7 +249,7 @@ namespace WinFormsApp1.Classes
                     {
                         UserId = userID,    // *who* is getting banned
                         Reason = Reason,    // (optional) *why* are they getting banned
-                        Duration = null // (optional) how long to time them out for, or `null` a for perma-ban
+                        Duration = duration // (optional) how long to time them out for, or `null` a for perma-ban
                     },
                           accessToken                  // accessToken: (optional) required to ban *as* someone else, or *if* skipped above
                     );
@@ -246,7 +259,6 @@ namespace WinFormsApp1.Classes
                 catch (Exception)
                 {
                     Log("Ban Failed! Invalid Ban Credentials!");
-                    throw;
                 }
             }
             else
@@ -355,7 +367,7 @@ namespace WinFormsApp1.Classes
             {
                 API.Settings.Secret = clientSecret; API.Settings.AccessToken = accessToken; API.Settings.ClientId = clientID;
 
-                if (clientID == "%null%" || clientID == null || clientSecret == "%null%" || clientSecret == null)
+                if (clientID == "" || clientID == null || clientSecret == "" || clientSecret == null)
                 {
                     Spark.Warn("Twitch ClientID or ClientSecret Is Missing!");
                     Spark.twitchConnection = false;
@@ -380,14 +392,12 @@ namespace WinFormsApp1.Classes
                             }
                         }
                     };
-                    Spark.DebugLog(accessToken);
-                    ValidateAccessTokenResponse TokenResponse = await API.Auth.ValidateAccessTokenAsync(accessToken);
 
-                    if (TokenResponse == null || oldScopes != scopes)
+                    async void RequestTokens()
                     {
                         var Values = new Dictionary<string, string>
                         {
-                  { "client_id", clientID },
+                    { "client_id", clientID },
                 { "force_verify", "false" },
                 { "redirect_uri", DirectURL },
                 { "response_type", "code" },
@@ -407,6 +417,35 @@ namespace WinFormsApp1.Classes
                         string FullURL = "https://id.twitch.tv/oauth2/authorize?" + Content.ReadAsStringAsync().Result;
 
                         Process.Start(new ProcessStartInfo(FullURL) { UseShellExecute = true });
+                    }
+                    
+
+                    ValidateAccessTokenResponse tokenResponse = await API.Auth.ValidateAccessTokenAsync(accessToken);
+
+                    if (tokenResponse == null || oldScopes != scopes || accessToken == "")
+                    {
+                        if (oldScopes != scopes || accessToken == "")
+                        {
+                            RequestTokens();
+                        }
+                        else
+                        {
+                            try
+                            {
+                                RefreshResponse refreshResponse = await API.Auth.RefreshAuthTokenAsync(refreshToken, clientSecret, clientID);
+                                accessToken = refreshResponse.AccessToken;
+                                refreshToken = refreshResponse.RefreshToken;
+
+                                await ConnectClient();
+                                await _host.StartAsync();
+                                Log("Access Token was refreshed!");
+                            }
+                            catch (Exception e)
+                            {
+                                Log("Exception Thrown: " + e.Message + " at: " + e.Source);
+                                RequestTokens();
+                            }
+                        }
                     }
                     else
                     {
@@ -446,7 +485,7 @@ namespace WinFormsApp1.Classes
             }
             else
             {
-                Log("User has already been excluded!");
+                Spark.DebugLog("User has already been excluded!");
             }
         }
 
@@ -464,7 +503,7 @@ namespace WinFormsApp1.Classes
         /// <returns></returns>
         public string GetUserFromID(string userID)
         {
-            var Users = API.Helix.Users.GetUsersAsync(new List<string> { userID });
+            var Users = API.Helix.Users.GetUsersAsync(new List<string> { userID }, accessToken: accessToken);
             string displayName = Users.Result.Users[0].DisplayName.ToString();
             return displayName;
         }
@@ -472,7 +511,7 @@ namespace WinFormsApp1.Classes
 
         public string GetBroadcasterID()
         {
-            var User = API.Helix.Users.GetUsersAsync();
+            var User = API.Helix.Users.GetUsersAsync(accessToken: accessToken);
             channelID = User.Result.Users[0].Id.ToString();
             return channelID;
         }
@@ -507,20 +546,29 @@ namespace WinFormsApp1.Classes
 
         #region Events
 
+        private void ChatCommandReceived(object? sender, OnChatCommandReceivedArgs e)
+        {
+            string command = e.Command.CommandText.ToLower();
+            string parameter = e.Command.ArgumentsAsString.ToLower();
+        }
+
         private void ViewerLeft(object? sender, TwitchLib.Client.Events.OnUserLeftArgs e)
         {
             currentViewers = -1;
             string Viewer = e.Username;
-            StoreLog(viewerLogs, " " + Spark.CurrentTime() + "  -  " + Viewer + " has left the stream!");
             Log("Viewer Left: " + Viewer);
+            if (!excludedUsers.Contains(Viewer))
+            {
+                StoreLog(viewerLogs, " " + Spark.CurrentTime() + "  -  " + Viewer + " has left the stream!");
+            }
         }
 
         private void ViewerJoined(object? sender, TwitchLib.Client.Events.OnUserJoinedArgs e)
         {
             currentViewers = +1;
             string Viewer = e.Username;
-            StoreViewer(Viewer);
             Log("Viewer Joined: " + Viewer);
+            StoreViewer(Viewer);
         }
 
         private void JoinedChannel(object? sender, TwitchLib.Client.Events.OnJoinedChannelArgs e)
@@ -532,6 +580,12 @@ namespace WinFormsApp1.Classes
         {
             Log("Left Channel " + e.Channel);
         }
+
+        private void OnConnected()
+        { 
+
+        }
+
         #endregion
 
 
@@ -547,6 +601,7 @@ namespace WinFormsApp1.Classes
             twitchClient.OnJoinedChannel += JoinedChannel;
             twitchClient.OnUserJoined += ViewerJoined;
             twitchClient.OnUserLeft += ViewerLeft;
+            twitchClient.OnChatCommandReceived += ChatCommandReceived;
         }
 
         /// <summary>
@@ -555,12 +610,16 @@ namespace WinFormsApp1.Classes
         /// <param name="Viewer"></param>
         private void StoreViewer(string Viewer)
         {
-            EnsureLimit(viewerLogs, 5000, true);
-            StoreLog(viewerLogs, " " + Spark.CurrentTime() + "  -  " + Viewer + " has joined the stream!");
-
-            if (!whoVisited.Contains(Viewer) && !excludedUsers.Contains(Viewer))
+            if (!excludedUsers.Contains(Viewer))
             {
-                whoVisited.Add(Viewer);
+                EnsureLimit(viewerLogs, 9999, true);
+                StoreLog(viewerLogs, " " + Spark.CurrentTime() + "  -  " + Viewer + " has joined the stream!");
+
+                if (!whoVisited.Contains(Viewer))
+                {
+                    EnsureLimit(viewerLogs, 9999999, true);
+                    StoreLog(whoVisited, Viewer, storeGlobally: false);
+                }
             }
         }
 
@@ -569,8 +628,8 @@ namespace WinFormsApp1.Classes
             LoadLogList();
 
 
-            string _accessToken = "%null%";
-            string _refreshToken = "%null%";
+            string _accessToken = "";
+            string _refreshToken = "";
 
             if (!disposeTokens)
             {
@@ -578,7 +637,7 @@ namespace WinFormsApp1.Classes
                 _refreshToken = refreshToken;
             }
 
-                var clientData = new List<ClientData>
+            var clientData = new List<ClientData>
                 {
                 new ClientData
                 {
@@ -586,7 +645,6 @@ namespace WinFormsApp1.Classes
                     Client_Secret = clientSecret,
                 }
             };
-
 
             var tokenData = new List<TokenData>
                 {
@@ -620,10 +678,12 @@ namespace WinFormsApp1.Classes
             {
                 if (!IsEmpty(list.Item2) || ForceSave)
                 {
-                    string logPath = twitchLogsPath + @"\" + DateTime.Now.Day + ";" + DateTime.Now.Month + ";" + DateTime.Now.Year;
+                    var date = DateTime.Now;
+                    string logPath = Path.Combine(twitchLogsPath, $"{date.Year}.{date.Month}.{date.Day}  {date.Hour}.{date.Minute}.{date.Second}");
                     await Spark.CreatePath(logPath);
-                    string FilePath = logPath + @"\" + list.Item1 + ".txt";
-                    using var file = System.IO.File.OpenWrite(FilePath);
+                    string filePath = Path.Combine(logPath, list.Item1) + ".txt";
+                    using var file = System.IO.File.OpenWrite(filePath);
+
                     await using (StreamWriter sw = new StreamWriter(file))
                     {
                         foreach (string log in list.Item2)
@@ -652,7 +712,7 @@ namespace WinFormsApp1.Classes
         /// </summary>
         /// <param name="list"></param>
         /// <returns></returns>
-        public static bool IsEmpty(List<string> list)
+        public static bool IsEmpty<T>(List<T> list)
         {
             if (list.Count <= 0)
             {
@@ -857,32 +917,6 @@ namespace WinFormsApp1.Classes
 
 
             #region Events
-
-            #region Viewers
-            private async Task ChannelPointRedemption(object? sender, ChannelPointsCustomRewardRedemptionArgs e)
-            {
-                var eventData = e.Notification.Payload.Event;
-                string reward = eventData.Reward.Title;
-                string user = eventData.UserName;
-
-                Twitch.Log($"{user} Redeemed {reward} for {eventData.Reward.Cost} Poinks!");
-                Twitch.StoreLog(Classes.Twitch.channelPointLogs, $"{user} Redeemed {reward} for {eventData.Reward.Cost} Channel Points!");
-                Twitch.SendMessage(user + " Redeemed " + reward + " for " + eventData.Reward.Cost + " Poinks!");
-            }
-
-            private async Task MessageReceived(object? sender, ChannelChatMessageArgs e)
-            {
-                var eventData = e.Notification.Payload.Event;
-                string user = eventData.ChatterUserName;
-                string broadcaster = eventData.BroadcasterUserName;
-                string message = eventData.Message.Text;
-                string messageId = eventData.MessageId;
-
-                Spark.Log(eventData.ChatterUserName + ": " + eventData.Message.Text, Color.MediumPurple);
-                Twitch.StoreLog(Classes.Twitch.messageLogs, $"{eventData.ChatterUserName}: {eventData.Message.Text}");
-            }
-            #endregion
-
 
             #region Stream
             private async Task OnChannelRaid(object? sender, ChannelRaidArgs e)
@@ -1200,6 +1234,32 @@ namespace WinFormsApp1.Classes
             #endregion
 
 
+            #region Viewers
+            private async Task ChannelPointRedemption(object? sender, ChannelPointsCustomRewardRedemptionArgs e)
+            {
+                var eventData = e.Notification.Payload.Event;
+                string reward = eventData.Reward.Title;
+                string user = eventData.UserName;
+
+                Twitch.Log($"{user} Redeemed {reward} for {eventData.Reward.Cost} Poinks!");
+                Twitch.StoreLog(Classes.Twitch.channelPointLogs, $"{user} Redeemed {reward} for {eventData.Reward.Cost} Channel Points!");
+                Twitch.SendMessage(user + " Redeemed " + reward + " for " + eventData.Reward.Cost + " Poinks!");
+            }
+
+            private async Task MessageReceived(object? sender, ChannelChatMessageArgs e)
+            {
+                var eventData = e.Notification.Payload.Event;
+                string user = eventData.ChatterUserName;
+                string broadcaster = eventData.BroadcasterUserName;
+                string message = eventData.Message.Text;
+                string messageId = eventData.MessageId;
+
+                Spark.Log(eventData.ChatterUserName + ": " + eventData.Message.Text, Color.MediumPurple);
+                Twitch.StoreLog(Classes.Twitch.messageLogs, $"{eventData.ChatterUserName}: {eventData.Message.Text}");
+            }
+            #endregion
+
+
             #region Moderation
             private async Task OnUserBanned(object? sender, ChannelBanArgs e)
             {
@@ -1403,12 +1463,6 @@ namespace WinFormsApp1.Classes
                 _eventSubWebsocketClient.ErrorOccurred += OnErrorOccurred;
 
 
-                #region Viewers
-                _eventSubWebsocketClient.ChannelChatMessage += MessageReceived;
-                _eventSubWebsocketClient.ChannelPointsCustomRewardRedemptionAdd += ChannelPointRedemption;
-                #endregion
-
-
                 #region Stream
                 _eventSubWebsocketClient.StreamOnline += OnStreamOnline;
                 _eventSubWebsocketClient.StreamOffline += OnStreamOffline;
@@ -1442,6 +1496,12 @@ namespace WinFormsApp1.Classes
 
                 _eventSubWebsocketClient.ChannelVipAdd += ChannelVipAdded;
                 _eventSubWebsocketClient.ChannelVipRemove += ChannelVipRemoved;
+                #endregion
+
+
+                #region Viewers
+                _eventSubWebsocketClient.ChannelChatMessage += MessageReceived;
+                _eventSubWebsocketClient.ChannelPointsCustomRewardRedemptionAdd += ChannelPointRedemption;
                 #endregion
 
 

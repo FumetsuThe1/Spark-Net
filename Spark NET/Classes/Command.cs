@@ -9,11 +9,12 @@ namespace WinFormsApp1.Classes
         Recognition Recognition = Classes.Recognition;
 
 
-        public Dictionary<string, string> commandList = new Dictionary<string, string>();
+        public Dictionary<string, string> commandList = new();
 
 
         private void CommandLibrary(string Command, string Parameter, string CasedParameter)
         {
+            string[] parameters = Parameter.Split(' ');
             switch (Command)
             {
                 case "exit":
@@ -38,6 +39,24 @@ namespace WinFormsApp1.Classes
                     Classes.Spark.Warn(CasedParameter); break;
                 case "parameter":
                     Classes.Spark.Log(CasedParameter, Classes.Spark.paramColor); break;
+
+                case "twitch":
+                    if (parameters.Length < 2)
+                    {
+                        Spark.Warn("Twitch command requires a parameter!");
+                        return;
+                    }
+                    else
+                    {
+                        switch (parameters[0])
+                        {
+                            case "banrecent":
+                                Classes.Twitch.BanRecentUser(); break;
+                            case "start":
+                                Classes.Twitch.LoadConnection(); break;
+                        }
+                        break;
+                    }
             }
         }
 
@@ -67,10 +86,6 @@ namespace WinFormsApp1.Classes
 
         public void RunCommand(string Command, string Parameter = "%null%")
         {
-            foreach (string word in commandList.Keys)
-            {
-                Spark.DebugLog("Found Key: " + word);
-            }
             Spark.DebugLog("Running Command: " + Command);
             if (Spark.commandConnection)
             {
@@ -94,14 +109,14 @@ namespace WinFormsApp1.Classes
                         Parameter = CasedParameter.ToLower();
                     }
 
-                    Classes.Spark.DebugLog("Command: " + Command);
-                    Classes.Spark.DebugLog("Parameter: " + Parameter);
+                    Spark.DebugLog("Command: " + Command);
+                    Spark.DebugLog("Parameter: " + Parameter);
 
                     CommandLibrary(Command, Parameter, CasedParameter);
                 }
                 else
                 {
-                    Classes.Spark.Warn("Command Not Found!");
+                    Spark.Warn("Command Not Found!");
                 }
             }
             else

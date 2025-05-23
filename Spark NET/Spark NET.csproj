@@ -10,8 +10,12 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Folder Include="Classes\Secrets\" />
-    <Folder Include="Designs\Subforms\" />
+    <Compile Remove="Classes\Secrets\**" />
+    <Compile Remove="Designs\Subforms\**" />
+    <EmbeddedResource Remove="Classes\Secrets\**" />
+    <EmbeddedResource Remove="Designs\Subforms\**" />
+    <None Remove="Classes\Secrets\**" />
+    <None Remove="Designs\Subforms\**" />
   </ItemGroup>
 
   <ItemGroup>

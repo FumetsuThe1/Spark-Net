@@ -19,25 +19,25 @@ namespace WinFormsApp1.Classes
         public bool recognitionLoaded = false;
 
 
-        public Choices choices = new Choices();
+        public Choices choices = new();
 
         public readonly static Model model = new Model(AIModel);
         public readonly static VoskRecognizer voskRec = new VoskRecognizer(model, 44100);
         public SpeechRecognitionEngine winRec;
 
-        public readonly WaveInEvent waveIn = new WaveInEvent();
+        public readonly WaveInEvent waveIn = new();
 
         MainForm MainForm = (MainForm)System.Windows.Forms.Application.OpenForms["MainForm"];
         Spark Spark = Classes.Spark;
 
 
-        public Dictionary<string, Tuple<string, string>> processes = new Dictionary<string, Tuple<string, string>>();
+        public Dictionary<string, Tuple<string, string>> processes = new();
 
-        public Dictionary<string, string> phrases = new Dictionary<string, string>();
-        public Dictionary<string, string> synonymPhrases = new Dictionary<string, string>();
-        public Dictionary<string, Tuple<string, List<string>>> synonymWords = new Dictionary<string, Tuple<string, List<string>>>();
+        public Dictionary<string, string> phrases = new();
+        public Dictionary<string, string> synonymPhrases = new();
+        public Dictionary<string, Tuple<string, List<string>>> synonymWords = new();
 
-        public List<string> antiMixups = new List<string>();
+        public List<string> antiMixups = new();
 
 
 
@@ -126,8 +126,7 @@ namespace WinFormsApp1.Classes
 
             if (!antiMixups.Contains(Phrase))
             {
-                Classes.Spark.DebugLog(Phrase);
-                Classes.Spark.Respond(Phrase);
+                Classes.Spark.Log($"Phrase Recognized: {Phrase}", Color.RebeccaPurple);
 
                 if (Classes.Spark.responses.ContainsKey(Phrase))
                 {
@@ -188,7 +187,6 @@ namespace WinFormsApp1.Classes
                         void WinSpeechRecognised(object? sender, SpeechRecognizedEventArgs e)
                         {
                             double Confidence = e.Result.Confidence * 100;
-                            Classes.Spark.DebugLog("Confidence Check?");
                             if (Confidence >= sensitivity)
                             {
                                 SpeechRecognised(e.Result.Text);
