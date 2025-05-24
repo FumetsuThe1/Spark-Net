@@ -10,7 +10,6 @@ using System.Text.Json.Nodes;
 
 // Add Global Keybind Support
 // Optimize and Refine everything, maybe implement Threading
-// Add Emotion Support
 // Add OBS Connection
 
 namespace WinFormsApp1.Classes
@@ -376,6 +375,7 @@ namespace WinFormsApp1.Classes
             AddCommand("Command");
             AddCommand("Twitch");
             #endregion
+
 
             #region AntiMixup
             AddMixup("Clip That");

@@ -103,9 +103,16 @@ namespace WinFormsApp1.Classes
         {
             if (twitchClient.IsConnected)
             {
-                var Clip = API.Helix.Clips.CreateClipAsync(GetBroadcasterID(), accessToken);
-                PlaySound("ClipCreated.mp3");
-                Log("Clip Created!");
+                try
+                {
+                    var Clip = API.Helix.Clips.CreateClipAsync(GetBroadcasterID(), accessToken);
+                    PlaySound("ClipCreated.mp3");
+                    Log("Clip Created!");
+                }
+                catch (Exception e)
+                {
+                    Log("Failed to create clip! Exception: " + e.Message);
+                }
             }
             else
             {
@@ -118,16 +125,23 @@ namespace WinFormsApp1.Classes
         {
             if (twitchClient.IsConnected)
             {
-                if (Channel == null)
+                try
                 {
-                    Channel = GetChannel();
-                    channelName = Channel;
-                    twitchClient.JoinChannel(Channel);
+                    if (Channel == null)
+                    {
+                        Channel = GetChannel();
+                        channelName = Channel;
+                        twitchClient.JoinChannel(Channel);
+                    }
+                    else
+                    {
+                        channelName = Channel;
+                        twitchClient.JoinChannel(Channel);
+                    }
                 }
-                else
+                catch (Exception e)
                 {
-                    channelName = Channel;
-                    twitchClient.JoinChannel(Channel);
+                    Log("Failed to join channel! Exception: " + e.Message);
                 }
             }
             else
@@ -140,12 +154,21 @@ namespace WinFormsApp1.Classes
         {
             if (twitchClient.IsConnected)
             {
-                if (Channel == null)
+                try
                 {
-                    Channel = GetChannel();
+
+                    if (Channel == null)
+                    {
+                        Channel = GetChannel();
+                    }
+                    twitchClient.LeaveChannel(Channel);
                 }
-                twitchClient.LeaveChannel(Channel);
+                catch (Exception e)
+                {
+                    Log("Failed to leave channel! Exception: " + e.Message);
+                }
             }
+
             else
             {
                 Log("Failed to leave channel! Twitch Client is not connected!");
@@ -158,11 +181,18 @@ namespace WinFormsApp1.Classes
         {
             if (twitchClient.IsConnected)
             {
-                if (Channel == null)
+                try
                 {
-                    Channel = GetChannel();
+                    if (Channel == null)
+                    {
+                        Channel = GetChannel();
+                    }
+                    twitchClient.Announce(Channel, Message);
                 }
-                twitchClient.Announce(Channel, Message);
+                catch (Exception e)
+                {
+                    Log("Failed to send announcement! Exception: " + e.Message);
+                }
             }
             else
             {
@@ -170,7 +200,7 @@ namespace WinFormsApp1.Classes
             }
         }
 
-        public void FollowersOnly(bool Value, string? Channel = null)
+        public void FollowersOnly(bool Value, string? Channel = null, int requiredFollowTime = 24)
         {
             if (twitchClient.IsConnected)
             {
@@ -178,13 +208,30 @@ namespace WinFormsApp1.Classes
                 {
                     Channel = GetChannel();
                 }
-                if (Value == true)
+                switch (Value)
                 {
-                    twitchClient.FollowersOnlyOn(Channel, TimeSpan.FromHours(48));
-                }
-                else
-                {
-                    twitchClient.FollowersOnlyOff(Channel);
+                    case true:
+                        try
+                        {
+                            twitchClient.FollowersOnlyOn(Channel, TimeSpan.FromHours(requiredFollowTime));
+                        }
+                        catch (Exception e)
+                        {
+                            Log("Failed to set followers only! Exception: " + e.Message);
+                            return;
+                        }
+                        break;
+                    case false:
+                        try
+                        {
+                            twitchClient.FollowersOnlyOff(Channel);
+                        }
+                        catch (Exception e)
+                        {
+                            Log("Failed to set followers only off! Exception: " + e.Message);
+                            return;
+                        }
+                        break;
                 }
             }
             else
@@ -193,34 +240,84 @@ namespace WinFormsApp1.Classes
             }
         }
 
-
-        private string GetChannel()
+        /// <summary>
+        /// Returns channel information based on the type provided.
+        /// </summary>
+        /// <remarks>If no identifier is provided, will get the broadcaster channel.</remarks>
+        /// <param name="type">What information of the channel to return. Values: id, username, login.</param>
+        /// <param name="login">Find channel by login.</param>
+        /// <param name="id">Find channel by id.</param>
+        private string GetChannel(string type = "login", string? login = null, string? id = null)
         {
-            string Channel = null;
-            API.Settings.ClientId = clientID;
-            API.Settings.AccessToken = accessToken;
-            var User = API.Helix.Users.GetUsersAsync();
-            Channel = User.Result.Users[0].Login.ToString();
-            return Channel;
+            try
+            {
+                string Channel = null;
+                API.Settings.ClientId = clientID;
+                API.Settings.AccessToken = accessToken;
+                var User = API.Helix.Users.GetUsersAsync();
+
+                if (login != null)
+                {
+                    User = API.Helix.Users.GetUsersAsync([login]);
+                }
+                else if (id != null)
+                {
+                    User = API.Helix.Users.GetUsersAsync(ids: [id]);
+                }
+
+
+                switch (type.ToLower())
+                {
+                    case "id":
+                        Channel = User.Result.Users[0].Id.ToString();
+                        break;
+                    case "username":
+                        Channel = User.Result.Users[0].DisplayName.ToString();
+                        break;
+                    case "login":
+                        Channel = User.Result.Users[0].Login.ToString();
+                        break;
+                    default:
+                        Spark.DebugLog("Invalid GetChannel type, defaulting to login.");
+                        Channel = User.Result.Users[0].Login.ToString();
+                        break;
+                }
+                return Channel;
+            }
+            catch (Exception e)
+            {
+                Spark.DebugLog("Exception thrown when getting channel: " + e.Message + " at: " + e.InnerException);
+                return null;
+            }
         }
 
-
+        /// <summary>
+        /// Connects the Twitch Client to the current channel.
+        /// </summary>
+        /// <returns></returns>
         public async Task ConnectClient()
         {
-            Spark.DebugLog(accessToken);
-            ConnectionCredentials Credentials = new ConnectionCredentials(botUsername, accessToken);
+            if (!twitchClient.IsConnected)
+            {
+                Spark.DebugLog(accessToken);
+                ConnectionCredentials Credentials = new ConnectionCredentials(botUsername, accessToken);
 
-            twitchClient.Initialize(Credentials);
+                twitchClient.Initialize(Credentials);
 
-            twitchClient.Connect();
+                twitchClient.Connect();
 
-            ExcludeUser(GetUserFromID(GetBroadcasterID()));
+                ExcludeUser(GetUserFromID(GetBroadcasterID()));
 
-            ConnectEvents();
+                ConnectEvents();
 
-            Log("Connected To Twitch!");
-            JoinChannel();
-            OnConnected();
+                Log("Connected To Twitch!");
+                JoinChannel();
+                OnConnected();
+            }
+            else
+            {
+                Log("Twitch Client is already connected!");
+            }
         }
 
 
@@ -276,12 +373,18 @@ namespace WinFormsApp1.Classes
         {
             if (twitchClient.IsConnected)
             {
-                if (Channel == null)
+                try
                 {
-                    Channel = channelName;
+                    if (Channel == null)
+                    {
+                        Channel = channelName;
+                    }
+                    twitchClient.SendMessage(channelName, Message);
                 }
-                Spark.DebugLog(channelName);
-                twitchClient.SendMessage(channelName, Message);
+                catch (Exception e)
+                {
+                    Log("Failed to send message! Exception: " + e.Message);
+                }
             }
             else
             {
@@ -299,7 +402,11 @@ namespace WinFormsApp1.Classes
             PlaySound("BannedRecentUser.wav");
         }
 
-
+        /// <summary>
+        /// Adds a Twitch chat command.
+        /// </summary>
+        /// <param name="Command">The command to be ran.</param>
+        /// <param name="ActionID">What action this command will call.</param>
         private void AddCommand(string Command, string ActionID)
         {
             Command = Command.ToLower();
@@ -311,8 +418,8 @@ namespace WinFormsApp1.Classes
         /// <summary>
         /// Logs a message to the console box.
         /// </summary>
-        /// <param name="Text"></param>
-        /// <param name="Force"></param>
+        /// <param name="Text">The text to log to console.</param>
+        /// <param name="Force">Whether to ignore the enableLogging rule.</param>
         public void Log(string Text, bool Force = false)
         {
             Spark.Log("Twitch: " + Text, Color.MediumPurple, Force);
@@ -489,6 +596,70 @@ namespace WinFormsApp1.Classes
             }
         }
 
+        public void Disconnect(string[]? disconnects = null)
+        { 
+            if (disconnects != null)
+            {
+                foreach (string disconnect in disconnects)
+                {
+                    switch (disconnect.ToLower())
+                    {
+                        case "client":
+                            DisconnectClient();
+                            break;
+                        case "eventsub":
+                            DisconnectEventsub();
+                            break;
+                        case "server":
+                            StopServer();
+                            break;
+                        default:
+                            Spark.DebugLog("Unknown Disconnect Type: " + disconnect);
+                            break;
+                    }
+                }
+            }
+            else
+            {
+                DisconnectEventsub();
+            }
+        }
+
+        public void DisconnectClient()
+        {
+            if (twitchClient.IsConnected)
+            {
+                twitchClient.Disconnect();
+                Log("Disconnected from Twitch Client!");
+            }
+            else
+            {
+                Spark.DebugLog("Twitch Client is already disconnected!");
+            }
+        }
+
+        public void DisconnectEventsub()
+        {
+            using (_host)
+            {
+                _host.StopAsync(TimeSpan.FromSeconds(5)).Wait();
+            }
+        }
+
+        private void StopServer()
+        {
+            if (WebServer != null)
+            {
+                if (WebServer.State == HttpServerState.Started || WebServer.State == HttpServerState.Starting)
+                {
+                    Spark.DebugLog("Stopped Web Server!");
+                    WebServer.Stop();
+                    WebServer.Dispose();
+                }
+            }
+        }
+
+
 
 
         #endregion
@@ -503,24 +674,42 @@ namespace WinFormsApp1.Classes
         /// <returns></returns>
         public string GetUserFromID(string userID)
         {
-            var Users = API.Helix.Users.GetUsersAsync(new List<string> { userID }, accessToken: accessToken);
-            string displayName = Users.Result.Users[0].DisplayName.ToString();
-            return displayName;
+            try
+            {
+                var Users = API.Helix.Users.GetUsersAsync(new List<string> { userID }, accessToken: accessToken);
+                string displayName = Users.Result.Users[0].DisplayName.ToString();
+                return displayName;
+            }
+            catch (Exception e)
+            {
+                Spark.DebugLog("Exception thrown when getting user from ID: " + e.Message + " at: " + e.InnerException);
+                return null;
+            }
         }
 
 
         public string GetBroadcasterID()
         {
-            var User = API.Helix.Users.GetUsersAsync(accessToken: accessToken);
-            channelID = User.Result.Users[0].Id.ToString();
-            return channelID;
+            try
+            {
+                var User = API.Helix.Users.GetUsersAsync(accessToken: accessToken);
+                channelID = User.Result.Users[0].Id.ToString();
+                return channelID;
+            }
+            catch (Exception e)
+            {
+                Spark.DebugLog("Exception thrown when getting broadcaster ID: " + e.Message + " at: " + e.InnerException);
+                return null;
+            }
         }
 
 
         async Task<Tuple<string, string>> GetTokens(string Code)
         {
-            HttpClient client = new HttpClient();
-            var Values = new Dictionary<string, string>
+            try
+            {
+                HttpClient client = new HttpClient();
+                var Values = new Dictionary<string, string>
             {
                 { "client_id", clientID },
                 { "client_secret", clientSecret },
@@ -528,17 +717,23 @@ namespace WinFormsApp1.Classes
                 { "grant_type", "authorization_code" },
                 { "redirect_uri", DirectURL },
             };
-            var Content = new FormUrlEncodedContent(Values);
+                var Content = new FormUrlEncodedContent(Values);
 
-            var Response = await client.PostAsync("https://id.twitch.tv/oauth2/token", Content);
+                var Response = await client.PostAsync("https://id.twitch.tv/oauth2/token", Content);
 
-            var ResponseString = await Response.Content.ReadAsStringAsync();
-            var Json = JsonObject.Parse(ResponseString);
-            accessToken = Json["access_token"].ToString();
-            refreshToken = Json["refresh_token"].ToString();
-            client.CancelPendingRequests();
-            client.Dispose();
-            return new Tuple<string, string>(Json["access_token"].ToString(), Json["refresh_token"].ToString());
+                var ResponseString = await Response.Content.ReadAsStringAsync();
+                var Json = JsonObject.Parse(ResponseString);
+                accessToken = Json["access_token"].ToString();
+                refreshToken = Json["refresh_token"].ToString();
+                client.CancelPendingRequests();
+                client.Dispose();
+                return new Tuple<string, string>(Json["access_token"].ToString(), Json["refresh_token"].ToString());
+            }
+            catch (Exception e)
+            {
+                Spark.DebugLog("Exception thrown when getting tokens: " + e.Message + " at: " + e.InnerException);
+                return null;
+            }
         }
 
         #endregion
@@ -776,14 +971,7 @@ namespace WinFormsApp1.Classes
         public async Task AppClosing()
         {
             await SaveData();
-            if (WebServer != null)
-            {
-                if (WebServer.State == NHttp.HttpServerState.Started || WebServer.State == HttpServerState.Starting)
-                {
-                    WebServer.Stop();
-                    WebServer.Dispose();
-                }
-            }
+            StopServer();
             if (disposeTokens)
             {
                 HttpClient client = new HttpClient();
@@ -795,10 +983,7 @@ namespace WinFormsApp1.Classes
                 }));
                 client.Dispose();
             }
-            using (_host)
-            {
-                await _host.StopAsync(TimeSpan.FromSeconds(5));
-            }
+            DisconnectEventsub();
         }
 
 
@@ -907,7 +1092,8 @@ namespace WinFormsApp1.Classes
 
         public class EventSubService : IHostedService
         {
-            private readonly ILogger<EventSubService> _logger;
+            bool connected = false;
+
             private readonly EventSubWebsocketClient _eventSubWebsocketClient;
             private readonly TwitchAPI _twitchAPI = Classes.Twitch.API;
             private string _userId;
@@ -1452,15 +1638,14 @@ namespace WinFormsApp1.Classes
 
 
             // Add Event Connections Here!
-            public EventSubService(ILogger<EventSubService> logger, EventSubWebsocketClient eventSubWebsocketClient)
+            public EventSubService(EventSubWebsocketClient eventSubWebsocketClient)
             {
-                _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-
                 _eventSubWebsocketClient = eventSubWebsocketClient ?? throw new ArgumentNullException(nameof(eventSubWebsocketClient));
+
                 _eventSubWebsocketClient.WebsocketConnected += OnWebsocketConnected;
+                _eventSubWebsocketClient.ErrorOccurred += OnErrorOccurred;
                 _eventSubWebsocketClient.WebsocketDisconnected += OnWebsocketDisconnected;
                 _eventSubWebsocketClient.WebsocketReconnected += OnWebsocketReconnected;
-                _eventSubWebsocketClient.ErrorOccurred += OnErrorOccurred;
 
 
                 #region Stream
@@ -1537,8 +1722,9 @@ namespace WinFormsApp1.Classes
             {
                 Twitch.Log("Websocket Connected!");
 
-                if (!e.IsRequestedReconnect)
+                if (!e.IsRequestedReconnect && connected == false)
                 {
+                    connected = true;
                     var condition = new Dictionary<string, string> { { "broadcaster_user_id", _userId }, { "moderator_user_id", _userId } };
                     var broadcasterCondition = new Dictionary<string, string> { { "broadcaster_user_id", _userId } };
                     var messageCondition = new Dictionary<string, string> { { "broadcaster_user_id", _userId }, { "user_id", _userId } };
@@ -1619,39 +1805,75 @@ namespace WinFormsApp1.Classes
 
             public async Task StopAsync(CancellationToken cancellationToken)
             {
-                await _eventSubWebsocketClient.DisconnectAsync();
+                _eventSubWebsocketClient.DisconnectAsync();
             }
 
 
             private async Task OnWebsocketDisconnected(object? sender, EventArgs e)
             {
-                int reconnectDelay = 1; // In seconds.
+                connected = false;
+                int reconnectDelay = 1; // Delay before attempting to reconnect, in seconds.
+                int delayIncrement = 1; // Amount to increase the reconnect delay by each attempt, In seconds.
+                string incrementType = "add"; // Add, multiply, square.
+
+                int maxRetries = 6; // Maximum number of retries before giving up.
                 Twitch.Log("Websocket Disconnected!");
 
-
-                while (!await _eventSubWebsocketClient.ReconnectAsync() && reconnectDelay <= 10)
+                int retryCount = 0;
+                while (!await _eventSubWebsocketClient.ReconnectAsync() && retryCount < maxRetries)
                 {
-                    if ((reconnectDelay + 1) <= 10)
+                    if ((retryCount + 1) >= maxRetries)
                     {
                         Twitch.Log($"Websocket failed to reconnect!");
+                        retryCount++;
                     }
                     else
                     {
                         Twitch.Log($"Websocket failed to reconnect! Trying again in {reconnectDelay} seconds..");
                         await Task.Delay(reconnectDelay * 1000);
-                        reconnectDelay += 1;
+                        retryCount++;
+                        Increment();
+                    }
+                }
+
+                void Increment()
+                {
+                    string type = incrementType.ToLower();
+
+                    switch(type)
+                    {
+                        case "add":
+                            reconnectDelay += delayIncrement;
+                            break;
+                        case "multiply":
+                            reconnectDelay *= delayIncrement;
+                            break;
+                        case "square":
+                            reconnectDelay *= reconnectDelay;
+                            break;
+                        default:
+                            Spark.DebugLog("Invalid increment type specified. Using addition by default.");
+                            reconnectDelay += delayIncrement;
+                            break;
                     }
                 }
             }
 
             private async Task OnWebsocketReconnected(object? sender, EventArgs e)
             {
+                connected = true;
                 Twitch.Log("Websocket Reconnected!");
             }
 
             private async Task OnErrorOccurred(object? sender, ErrorOccuredArgs e)
             {
-                Twitch.Log("An error has occured with the Websocket!");
+                connected = false;
+                Twitch.Log("An error has occured within the Websocket!");
+                var list = _twitchAPI.Helix.EventSub.GetEventSubSubscriptionsAsync(Twitch.accessToken); // Refresh the subscriptions list.
+                foreach (var subscription in list.Result.Subscriptions)
+                {
+                     Twitch.Log($"The subscription {subscription.Type} has been deleted due to an error!");
+                }
             }
         }
 

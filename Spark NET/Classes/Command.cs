@@ -12,7 +12,7 @@ namespace WinFormsApp1.Classes
         public Dictionary<string, string> commandList = new();
 
 
-        private void CommandLibrary(string Command, string Parameter, string CasedParameter)
+        private async void CommandLibrary(string Command, string Parameter, string CasedParameter)
         {
             string[] parameters = Parameter.Split(' ');
             switch (Command)
@@ -41,7 +41,7 @@ namespace WinFormsApp1.Classes
                     Classes.Spark.Log(CasedParameter, Classes.Spark.paramColor); break;
 
                 case "twitch":
-                    if (parameters.Length < 2)
+                    if (parameters.Length < 1)
                     {
                         Spark.Warn("Twitch command requires a parameter!");
                         return;
@@ -53,7 +53,9 @@ namespace WinFormsApp1.Classes
                             case "banrecent":
                                 Classes.Twitch.BanRecentUser(); break;
                             case "start":
-                                Classes.Twitch.LoadConnection(); break;
+                                await Classes.Twitch.LoadConnection(); break;
+                            case "stop":
+                                Classes.Twitch.Disconnect(); break;
                         }
                         break;
                     }
