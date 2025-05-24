@@ -19,17 +19,18 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="InputSimulator" Version="1.0.4" />
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.5" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.6" />
     <PackageReference Include="NAudio" Version="2.2.1" />
     <PackageReference Include="NAudio.Vorbis" Version="1.5.0" />
     <PackageReference Include="NHttp" Version="0.1.9" />
     <PackageReference Include="obs-websocket-dotnet" Version="5.0.1" />
     <PackageReference Include="System.Net.WebSockets" Version="4.3.0" />
-    <PackageReference Include="System.Speech" Version="9.0.4" />
-    <PackageReference Include="TwitchLib.Api" Version="3.9.0" />
+    <PackageReference Include="System.Speech" Version="10.0.0-preview.5.25277.114" />
+    <PackageReference Include="TwitchLib.Api" Version="3.10.0-preview-e47ba7f" />
     <PackageReference Include="TwitchLib.Client" Version="3.3.1" />
-    <PackageReference Include="TwitchLib.EventSub.Websockets" Version="0.6.0-preview-dbc970c" />
+    <PackageReference Include="TwitchLib.Communication" Version="1.0.6" />
+    <PackageReference Include="TwitchLib.EventSub.Websockets" Version="0.6.0" />
+    <PackageReference Include="TwitchLib.PubSub" Version="3.2.6" />
     <PackageReference Include="Vosk" Version="0.3.38" />
   </ItemGroup>
 

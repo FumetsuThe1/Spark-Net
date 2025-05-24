@@ -4,8 +4,12 @@ namespace WinFormsApp1.Classes
 {
     public class Command
     {
+        readonly public string moduleName = "Command";
+
+
         MainForm MainForm = (MainForm)System.Windows.Forms.Application.OpenForms["MainForm"];
         Spark Spark = Classes.Spark;
+        Twitch Twitch = Classes.Twitch;
         Recognition Recognition = Classes.Recognition;
 
 
@@ -20,7 +24,7 @@ namespace WinFormsApp1.Classes
                 case "exit":
                     Application.Exit(); break;
                 case "crash":
-                    throw new Exception();
+                    throw new Exception("A crash was forced from console!");
 
                 case "start":
                     Classes.Spark.Startup(); break;
@@ -52,10 +56,23 @@ namespace WinFormsApp1.Classes
                         {
                             case "banrecent":
                                 Classes.Twitch.BanRecentUser(); break;
+                            case "viewers":
+                                Classes.Twitch.Log($"Current Viewers: {Classes.Twitch.CurrentViewers()}"); break;
                             case "start":
                                 await Classes.Twitch.LoadConnection(); break;
                             case "stop":
                                 Classes.Twitch.Disconnect(); break;
+                            case "eventsub":
+                                switch (parameters[1])
+                                {
+                                    case "start":
+                                        Classes.Twitch.eventSub.StartAsync(); break;
+                                    case "stop":
+                                        Classes.Twitch.DisconnectEventsub(); break;
+                                    default:
+                                        Spark.Warn("Invalid EventSub command!"); break;
+                                }
+                                break;
                         }
                         break;
                     }

@@ -9,6 +9,9 @@ namespace WinFormsApp1.Classes
 {
     public class Recognition
     {
+        readonly public string moduleName = "Recognition";
+
+
         public const string recognitionModel = "Windows"; // Vosk, Windows, Vosk Backing
         public const double sensitivity = 70;
 
@@ -29,6 +32,7 @@ namespace WinFormsApp1.Classes
 
         MainForm MainForm = (MainForm)System.Windows.Forms.Application.OpenForms["MainForm"];
         Spark Spark = Classes.Spark;
+        Twitch Twitch = Classes.Twitch;
 
 
         public Dictionary<string, Tuple<string, string>> processes = new();

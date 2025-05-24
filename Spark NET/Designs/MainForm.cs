@@ -7,10 +7,13 @@ namespace WinFormsApp1.Designs
         private bool Closing = false;
         public bool ExitComplete = false;
 
+        string enterCommandText = "> Enter Command";
+
         public MainForm()
         {
             InitializeComponent();
             Application.ApplicationExit += new EventHandler(this.Application_ApplicationExit);
+            CommandBar.Text = enterCommandText;
         }
 
         private void Application_ApplicationExit(object? sender, EventArgs e)
@@ -33,7 +36,7 @@ namespace WinFormsApp1.Designs
             Classes.Spark.TogglePower();
         }
 
-        private void MainForm_Closing(object sender, FormClosingEventArgs e)
+        private async void MainForm_Closing(object sender, FormClosingEventArgs e)
         {
             if (!ExitComplete)
             {
@@ -42,15 +45,15 @@ namespace WinFormsApp1.Designs
             if (!Closing)
             {
                 Closing = true;
-                Classes.Spark.HandleExit();
+                await Classes.Spark.HandleExit();
             }
         }
 
         private void CommandBar_KeyPress(object sender, KeyPressEventArgs e)
         {
+            string input = CommandBar.Text;
             if (e.KeyChar == (char)Keys.Enter)
             {
-                string input = CommandBar.Text;
                 CommandBar.Clear();
                 Classes.Spark.SendCommand(input);
             }
@@ -58,7 +61,8 @@ namespace WinFormsApp1.Designs
 
         private void CommandBar_Enter(object sender, EventArgs e)
         {
-            if (CommandBar.Text == "Enter Command" || CommandBar.Text == "" || CommandBar.Text == " ")
+            string text = CommandBar.Text;
+            if (text == enterCommandText || string.IsNullOrWhiteSpace(text))
             {
                 CommandBar.Clear();
             }
@@ -66,15 +70,16 @@ namespace WinFormsApp1.Designs
 
         private void CommandBar_Leave(object sender, EventArgs e)
         {
-            if (CommandBar.Text == "" || CommandBar.Text == " ")
+            string text = CommandBar.Text;
+            if (string.IsNullOrWhiteSpace(text))
             {
-                CommandBar.Text = "Enter Command";
+                CommandBar.Text = enterCommandText;
             }
         }
     }
 
     public class Classes
     {
-        static public Spark Spark = new Spark();
+        static public Spark Spark = new();
     }
 }

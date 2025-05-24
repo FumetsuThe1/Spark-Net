@@ -1,11 +1,12 @@
-﻿using WinFormsApp1.Designs;
+﻿using NAudio.Vorbis;
 using NAudio.Wave;
-using System.Text.RegularExpressions;
+using Spark_NET.Classes;
 using System.Diagnostics;
 using System.Text.Json;
-using Spark_NET.Classes;
-using NAudio.Vorbis;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
+using WinFormsApp1.Designs;
+using WinFormsApp1.Classes;
 
 
 // Add Global Keybind Support
@@ -57,7 +58,8 @@ namespace WinFormsApp1.Classes
 
         const string NoActionString = " No actions have been logged..";
 
-        DateTime startupTime = DateTime.Now;
+        public DateTime startupTime { get; private set; } = DateTime.Now;
+        public TimeSpan loadTime { get; private set; } = TimeSpan.Zero;
 
 
         public string documentsPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
@@ -69,7 +71,7 @@ namespace WinFormsApp1.Classes
         public Dictionary<string, string> responses = new();
 
 
-        public void PlaySound(string Sound, string? soundPath = null, bool forceplay = false)
+        public void PlaySound(string Sound, string? soundPath = null, int volume = 100, bool forceplay = false)
         {
             if (enableSounds || forceplay)
             {
@@ -80,43 +82,45 @@ namespace WinFormsApp1.Classes
 
                 if (File.Exists(Path.Combine(soundPath, Sound)))
                 {
-                    string extensionType = Path.GetExtension(Path.Combine(soundPath, Sound));
-                    var waveOut = new WaveOut();
-                    switch (extensionType)
+                    if (volume <= 100 && volume > 0)
                     {
-                        case ".wav":
-                            var wavreader = new WaveFileReader(Path.Combine(soundPath, Sound));
-                            waveOut.Init(wavreader);
-                            waveOut.Play();
-                            waveOut.PlaybackStopped += (s, e) =>
-                            {
-                                waveOut.Dispose();
-                                wavreader.Dispose();
-                            };
-                            break;
-                        case ".mp3":
-                            var mp3reader = new Mp3FileReader(Path.Combine(soundPath, Sound));
-                            waveOut.Init(mp3reader);
-                            waveOut.Play();
-                            waveOut.PlaybackStopped += (s, e) =>
-                            {
-                                waveOut.Dispose();
-                                mp3reader.Dispose();
-                            };
-                            break;
-                        case ".ogg":
-                            var oggreader = new VorbisWaveReader(Path.Combine(soundPath, Sound));
-                            waveOut.Init(oggreader);
-                            waveOut.Play();
-                            waveOut.PlaybackStopped += (s, e) =>
-                            {
-                                waveOut.Dispose();
-                                oggreader.Dispose();
-                            };
-                            break;
-                        default:
-                            Warn("Tried to play unsupported sound type: " + extensionType);
-                            break;
+                        string extensionType = Path.GetExtension(Path.Combine(soundPath, Sound));
+
+                        var waveOut = new WaveOut();
+                        float trueVolume = (volume / 100f);
+                        waveOut.Volume = trueVolume;
+
+                        switch (extensionType)
+                        {
+                            case ".wav":
+                                using (var wavreader = new WaveFileReader(Path.Combine(soundPath, Sound)))
+                                {
+                                    waveOut.Init(wavreader);
+                                    waveOut.Play();
+                                }
+                                break;
+                            case ".mp3":
+                                using (var mp3reader = new Mp3FileReader(Path.Combine(soundPath, Sound)))
+                                {
+                                    waveOut.Init(mp3reader);
+                                    waveOut.Play();
+                                }
+                                break;
+                            case ".ogg":
+                                using (var oggreader = new VorbisWaveReader(Path.Combine(soundPath, Sound)))
+                                {
+                                    waveOut.Init(oggreader);
+                                    waveOut.Play();
+                                }
+                                break;
+                            default:
+                                Warn("Tried to play unsupported sound type: " + extensionType);
+                                break;
+                        }
+                    }
+                    else
+                    {
+                        DebugLog("Failed to play sound! Invalid volume!");
                     }
                 }
                 else
@@ -302,6 +306,8 @@ namespace WinFormsApp1.Classes
 
         public async Task AppLoad()
         {
+            DateTime startTime = DateTime.Now;
+
             #region FilePaths
             await CreatePath(dataPath);
             await CreatePath(Path.Combine(dataPath, "Logs"));
@@ -328,6 +334,11 @@ namespace WinFormsApp1.Classes
             Command.AppLoad();
             await Twitch.AppLoad();
             PlaySound("Startup.mp3");
+
+            DateTime endTime = DateTime.Now;
+            startupTime = endTime;
+            loadTime = endTime - startTime;
+            DebugLog($"Spark Loaded in: {loadTime.TotalSeconds} Seconds!");
         }
 
         private void BuildLibrary()
@@ -614,10 +625,10 @@ namespace WinFormsApp1.Classes
             else
             {
                 Startup();
-                Shutdown();
             }
         }
     }
+
 
     public static class RichTextBoxExtensions
     {
