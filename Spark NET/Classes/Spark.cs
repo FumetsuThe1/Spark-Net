@@ -1,12 +1,13 @@
 ﻿using NAudio.Vorbis;
 using NAudio.Wave;
+using NAudio.Wave.SampleProviders;
 using Spark_NET.Classes;
 using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
-using WinFormsApp1.Designs;
 using WinFormsApp1.Classes;
+using WinFormsApp1.Designs;
 
 
 // Add Global Keybind Support
@@ -652,6 +653,26 @@ namespace WinFormsApp1.Classes
             {
                 Append(box, text, color);
             }
+        }
+    }
+
+    public static class Settings
+    {
+        public static bool EnableLogging { get; set; } = true;
+        public static bool ResetLogs { get; set; } = true;
+
+        public static bool enableSounds { get; set; } = true;
+
+        public static class Modules
+        {
+            public static bool Recognition { get; set; } = true;
+            public static bool Command { get; set; } = true;
+
+            public static bool Emotion { get; set; } = false;
+
+
+            public static bool Twitch { get; set; } = true;
+            public static bool OBS { get; set; } = false;
         }
     }
 

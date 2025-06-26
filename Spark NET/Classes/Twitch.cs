@@ -27,7 +27,6 @@ using WinFormsApp1.Designs;
 
 // Add Chat Command Support
 // Add support for Connecting to Non-Broadcaster Channels
-// Add support for Same-Date Twitch Logs
 // Add more Twitch Logging (Chat Commands)
 // Add Channel Bot Support?
 
@@ -63,7 +62,7 @@ namespace WinFormsApp1.Classes
 
         bool disposeTokens = false;
 
-        MainForm MainForm = (MainForm)System.Windows.Forms.Application.OpenForms["MainForm"];
+        MainForm MainForm = (MainForm)Application.OpenForms["MainForm"];
         NHttp.HttpServer WebServer;
         Spark Spark = Classes.Spark;
 
@@ -218,9 +217,9 @@ namespace WinFormsApp1.Classes
         }
 
         /// <summary>
-        /// 
+        /// Sets the followers only status of the channel.
         /// </summary>
-        /// <param name="value"></param>
+        /// <param name="value">True or false.</param>
         /// <param name="channel"></param>
         /// <param name="requiredFollowTime">How long someone has to be followed to send messages. In hours.</param>
         public void FollowersOnly(bool value, string? channel = null, int requiredFollowTime = 24)
@@ -458,7 +457,10 @@ namespace WinFormsApp1.Classes
         /// <param name="Force">Whether to ignore the enableLogging rule.</param>
         public void Log(string Text, bool Force = false)
         {
-            Spark.Log($"{moduleName}: {Text}", Color.MediumPurple, Force);
+            if (Settings.EnableLogging || Force)
+            {
+                Spark.Log($"{moduleName}: {Text}", Color.MediumPurple, Force);
+            }
         }
 
         /// <summary>
@@ -1079,7 +1081,10 @@ namespace WinFormsApp1.Classes
 
         private void PlaySound(string Sound, int volume = 100)
         {
-            Spark.PlaySound(Sound, Path.Combine(Classes.Spark.soundsPath, "Twitch"), volume);
+            if (Settings.EnableSounds)
+            {
+                Spark.PlaySound(Sound, Path.Combine(Classes.Spark.soundsPath, "Twitch"), volume);
+            }
         }
 
         /// <summary>
@@ -2814,6 +2819,27 @@ namespace WinFormsApp1.Classes
             public string Refresh_Token { get; set; }
 
             public string Scopes { get; set; }
+        }
+
+        public static class Settings
+        {
+            /// <summary>
+            /// Enable logging to the console box.
+            /// </summary>
+            public static bool EnableLogging = true;
+            /// <summary>
+            /// Indicates whether chat messages should be logged.
+            /// </summary>
+            public static bool LogChatMessages = true;
+            /// <summary>
+            /// Whether to log Twitch events while offline.
+            /// </summary>
+            public static bool OfflineLogging = false;
+
+            /// <summary>
+            /// Whether to enable sounds coming from Twitch Module.
+            /// </summary>
+            public static bool EnableSounds = true;
         }
     }
 }
