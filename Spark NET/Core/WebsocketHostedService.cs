@@ -1,4 +1,4 @@
-﻿namespace WinFormsApp1.Classes
+﻿namespace SparkNet.Classes
 {
     public class WebsocketHostedService
     {

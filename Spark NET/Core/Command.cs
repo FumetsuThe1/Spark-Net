@@ -1,6 +1,6 @@
-﻿using WinFormsApp1.Designs;
+﻿using SparkNet.Designs;
 
-namespace WinFormsApp1.Classes
+namespace SparkNet.Classes
 {
     public class Command
     {

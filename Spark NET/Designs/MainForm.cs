@@ -1,6 +1,6 @@
-﻿using WinFormsApp1.Classes;
+﻿using SparkNet.Classes;
 
-namespace WinFormsApp1.Designs
+namespace SparkNet.Designs
 {
     public partial class MainForm : Form
     {

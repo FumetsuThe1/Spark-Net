@@ -1,4 +1,4 @@
-using WinFormsApp1.Designs;
+using SparkNet.Designs;
 
 namespace Spark_NET
 {

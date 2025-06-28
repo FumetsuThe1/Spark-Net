@@ -1,4 +1,4 @@
-﻿namespace WinFormsApp1.Designs
+﻿namespace SparkNet.Designs
 {
     partial class MainForm
     {

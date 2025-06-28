@@ -1,11 +1,12 @@
 ﻿using System.Speech.Recognition;
 using NAudio.Wave;
-using WinFormsApp1.Designs;
+using SparkNet.Designs;
 using Vosk;
+using System.Buffers.Text;
 
- // Fix Responses Not Working
+// Fix Responses Not Working
 
-namespace WinFormsApp1.Classes
+namespace SparkNet.Classes
 {
     public class Recognition
     {

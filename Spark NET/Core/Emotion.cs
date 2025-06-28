@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace WinFormsApp1.Classes
+namespace SparkNet.Classes
 {
     public class Emotion
     {

@@ -3,6 +3,7 @@ using Microsoft.Extensions.Hosting;
 using NHttp;
 using System.Diagnostics;
 using System.Net;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using TwitchLib.Api;
@@ -23,14 +24,14 @@ using TwitchLib.EventSub.Websockets.Core.EventArgs.User;
 using TwitchLib.EventSub.Websockets.Extensions;
 using TwitchLib.PubSub;
 using TwitchLib.PubSub.Events;
-using WinFormsApp1.Designs;
+using SparkNet.Designs;
 
 // Add Chat Command Support
 // Add support for Connecting to Non-Broadcaster Channels
 // Add more Twitch Logging (Chat Commands)
 // Add Channel Bot Support?
 
-namespace WinFormsApp1.Classes
+namespace SparkNet.Classes
 {
     public class Twitch
     {
@@ -137,6 +138,7 @@ namespace WinFormsApp1.Classes
         /// </summary>
         public void CreateClip()
         {
+            
             try
             {
                 var Clip = API.Helix.Clips.CreateClipAsync(GetBroadcaster().Id, accessToken);

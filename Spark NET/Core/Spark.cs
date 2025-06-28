@@ -6,15 +6,15 @@ using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
-using WinFormsApp1.Classes;
-using WinFormsApp1.Designs;
+using SparkNet.Classes;
+using SparkNet.Designs;
 
 
 // Add Global Keybind Support
 // Optimize and Refine everything, maybe implement Threading
 // Add OBS Connection
 
-namespace WinFormsApp1.Classes
+namespace SparkNet.Classes
 {
     public class Spark
     {
